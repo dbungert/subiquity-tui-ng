@@ -1,0 +1,114 @@
+package client
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"time"
+)
+
+type ApplicationState string
+
+const (
+	ApplicationStateStartingUp    ApplicationState = "STARTING_UP"
+	ApplicationStateCloudInitWait ApplicationState = "CLOUD_INIT_WAIT"
+	ApplicationStateEarlyCommands ApplicationState = "EARLY_COMMANDS"
+	ApplicationStateNeedsConfirm  ApplicationState = "NEEDS_CONFIRMATION"
+	ApplicationStateWaiting       ApplicationState = "WAITING"
+	ApplicationStateRunning       ApplicationState = "RUNNING"
+	ApplicationStateUURunning     ApplicationState = "UU_RUNNING"
+	ApplicationStateLateCommands  ApplicationState = "LATE_COMMANDS"
+	ApplicationStateDone          ApplicationState = "DONE"
+	ApplicationStateError         ApplicationState = "ERROR"
+	ApplicationStateExited        ApplicationState = "EXITED"
+)
+
+type ApplicationStatus struct {
+	State         ApplicationState `json:"state"`
+	ConfirmingTTY string           `json:"confirming_tty"`
+	CloudInitOK   *bool            `json:"cloud_init_ok"`
+	Interactive   *bool            `json:"interactive"`
+	EchoSyslogID  string           `json:"echo_syslog_id"`
+	LogSyslogID   string           `json:"log_syslog_id"`
+	EventSyslogID string           `json:"event_syslog_id"`
+}
+
+type Client struct {
+	http       *http.Client
+	socketPath string
+}
+
+func New(socketPath string) *Client {
+	transport := &http.Transport{
+		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+			var d net.Dialer
+			return d.DialContext(ctx, "unix", socketPath)
+		},
+	}
+	httpClient := &http.Client{Transport: transport}
+	return &Client{http: httpClient, socketPath: socketPath}
+}
+
+func (c *Client) MetaStatus(ctx context.Context) (*ApplicationStatus, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", "http://localhost/meta/status", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("meta/status returned %d: %s", resp.StatusCode, string(body))
+	}
+
+	var status ApplicationStatus
+	if err := json.NewDecoder(resp.Body).Decode(&status); err != nil {
+		return nil, err
+	}
+	return &status, nil
+}
+
+func (c *Client) MetaStatusWithRetry(ctx context.Context, maxRetries int) (*ApplicationStatus, error) {
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		status, err := c.MetaStatus(ctx)
+		if err == nil {
+			return status, nil
+		}
+
+		if isConnRefused(fmt.Sprint(err)) {
+			if attempt < maxRetries-1 {
+				time.Sleep(250 * time.Millisecond)
+				continue
+			}
+		}
+		return nil, err
+	}
+	return nil, context.Canceled
+}
+
+func isConnRefused(errStr string) bool {
+	return isConnRefusedErrno(errStr)
+}
+
+func isConnRefusedErrno(errStr string) bool {
+	return contains(errStr, "connection refused") || contains(errStr, "ECONNREFUSED")
+}
+
+func contains(s, substr string) bool {
+	for i := 0; i < len(s)-len(substr)+1; i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}

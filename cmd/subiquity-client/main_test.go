@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"log"
 	"os"
 	"path/filepath"
 	"testing"
@@ -8,15 +10,24 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/stretchr/testify/assert"
 
+	"subiquity-ng/internal/client"
 	"subiquity-ng/internal/screens"
 )
 
 func newModel() Model {
-	return Model{current: screens.NewLanguage()}
+	var buf bytes.Buffer
+	logger := log.New(&buf, "", 0)
+	return Model{
+		current: screens.NewLanguage(),
+		client:  client.New(".subiquity/socket"),
+		logger:  logger,
+	}
 }
 
 func TestModel_InitDelegatesToScreen(t *testing.T) {
-	assert.Nil(t, newModel().Init())
+	m := newModel()
+	cmd := m.Init()
+	assert.NotNil(t, cmd)
 }
 
 func TestModel_UpdateWindowSizeStoresDimensions(t *testing.T) {
@@ -45,8 +56,46 @@ func TestModel_ViewAfterSizeContainsTitle(t *testing.T) {
 }
 
 func TestModel_StoresSocket(t *testing.T) {
-	m := Model{current: screens.NewLanguage(), socket: "/tmp/test.sock"}
+	var buf bytes.Buffer
+	logger := log.New(&buf, "", 0)
+	m := Model{
+		current: screens.NewLanguage(),
+		socket:  "/tmp/test.sock",
+		client:  client.New("/tmp/test.sock"),
+		logger:  logger,
+	}
 	assert.Equal(t, "/tmp/test.sock", m.socket)
+}
+
+func TestModel_UpdateMetaStatusMsg(t *testing.T) {
+	var buf bytes.Buffer
+	logger := log.New(&buf, "", 0)
+	m := Model{
+		current: screens.NewLanguage(),
+		client:  client.New(".subiquity/socket"),
+		logger:  logger,
+	}
+
+	status := &client.ApplicationStatus{
+		State: client.ApplicationStateRunning,
+	}
+	_, cmd := m.Update(metaStatusMsg{status: status})
+	assert.Nil(t, cmd)
+	assert.Contains(t, buf.String(), "meta/status: state=RUNNING")
+}
+
+func TestModel_UpdateMetaStatusErr(t *testing.T) {
+	var buf bytes.Buffer
+	logger := log.New(&buf, "", 0)
+	m := Model{
+		current: screens.NewLanguage(),
+		client:  client.New(".subiquity/socket"),
+		logger:  logger,
+	}
+
+	_, cmd := m.Update(metaStatusErrMsg{err: os.ErrNotExist})
+	assert.Nil(t, cmd)
+	assert.Contains(t, buf.String(), "meta/status error:")
 }
 
 func TestArgs_DefaultSocketPathWhenNotProvided(t *testing.T) {

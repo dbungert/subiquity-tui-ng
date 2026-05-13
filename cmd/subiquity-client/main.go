@@ -1,13 +1,17 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/alexflint/go-arg"
 	tea "github.com/charmbracelet/bubbletea"
 
+	"subiquity-ng/internal/client"
+	"subiquity-ng/internal/logging"
 	"subiquity-ng/internal/screens"
 	"subiquity-ng/internal/ui"
 )
@@ -20,9 +24,13 @@ type Model struct {
 	width, height int
 	current       screens.Screen
 	socket        string
+	client        *client.Client
+	logger        *log.Logger
 }
 
-func (m Model) Init() tea.Cmd { return m.current.Init() }
+func (m Model) Init() tea.Cmd {
+	return tea.Batch(m.current.Init(), fetchMetaStatus(m.client, m.logger))
+}
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -33,6 +41,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.String() == "ctrl+c" {
 			return m, tea.Quit
 		}
+	case metaStatusMsg:
+		m.logger.Printf("meta/status: state=%s", msg.status.State)
+		return m, nil
+	case metaStatusErrMsg:
+		m.logger.Printf("meta/status error: %v", msg.err)
+		return m, nil
 	}
 	var cmd tea.Cmd
 	m.current, cmd = m.current.Update(msg)
@@ -48,6 +62,26 @@ func (m Model) View() string {
 	return ui.Render(m.width, m.height, m.current.Title(), body)
 }
 
+type metaStatusMsg struct {
+	status *client.ApplicationStatus
+}
+
+type metaStatusErrMsg struct {
+	err error
+}
+
+func fetchMetaStatus(c *client.Client, logger *log.Logger) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		status, err := c.MetaStatusWithRetry(ctx, 10)
+		if err != nil {
+			return metaStatusErrMsg{err: err}
+		}
+		return metaStatusMsg{status: status}
+	}
+}
+
 func main() {
 	var args Args
 	arg.MustParse(&args)
@@ -61,8 +95,27 @@ func main() {
 		}
 	}
 
+	isRoot := os.Getuid() == 0
+	f, err := logging.Open(isRoot)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer func() {
+		if err := f.Close(); err != nil {
+			log.Printf("failed to close log file: %v", err)
+		}
+	}()
+
+	logger := log.New(f, "", log.LstdFlags)
+	c := client.New(args.Socket)
+
 	p := tea.NewProgram(
-		Model{current: screens.NewLanguage(), socket: args.Socket},
+		Model{
+			current: screens.NewLanguage(),
+			socket:  args.Socket,
+			client:  c,
+			logger:  logger,
+		},
 		tea.WithAltScreen(),
 	)
 	if _, err := p.Run(); err != nil {

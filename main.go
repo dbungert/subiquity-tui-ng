@@ -5,96 +5,48 @@ import (
 	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
+
+	"subiquity-ng/internal/screens"
+	"subiquity-ng/internal/ui"
 )
 
-// 1. THE MODEL: This stores your application state.
-type model struct {
-	choices  []string         // Items in our list
-	cursor   int              // Which item our cursor is pointing at
-	selected map[int]struct{} // Which items are selected
+type Model struct {
+	width, height int
+	current       screens.Screen
 }
 
-func initialModel() model {
-	return model{
-		choices:  []string{"Buy Milk", "Drink Coffee", "Build TUI"},
-		selected: make(map[int]struct{}),
-	}
-}
+func (m Model) Init() tea.Cmd { return m.current.Init() }
 
-// 2. THE INIT: This returns an initial command to run (like a socket connection).
-func (m model) Init() tea.Cmd {
-	return nil // No I/O for now
-}
-
-// 3. THE UPDATE: This handles all events (key presses, socket data, etc.)
-func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-
-	// Is it a key press?
+	case tea.WindowSizeMsg:
+		m.width, m.height = msg.Width, msg.Height
+		return m, nil
 	case tea.KeyMsg:
-		switch msg.String() {
-
-		// Standard "Quit" keys
-		case "ctrl+c", "q":
+		if msg.String() == "ctrl+c" {
 			return m, tea.Quit
-
-		// Move the cursor up
-		case "up", "k":
-			if m.cursor > 0 {
-				m.cursor--
-			}
-
-		// Move the cursor down
-		case "down", "j":
-			if m.cursor < len(m.choices)-1 {
-				m.cursor++
-			}
-
-		// Toggle selection
-		case "enter", " ":
-			_, ok := m.selected[m.cursor]
-			if ok {
-				delete(m.selected, m.cursor)
-			} else {
-				m.selected[m.cursor] = struct{}{}
-			}
 		}
 	}
-
-	// Return the updated model to the framework
-	return m, nil
+	var cmd tea.Cmd
+	m.current, cmd = m.current.Update(msg)
+	return m, cmd
 }
 
-// 4. THE VIEW: This renders the UI as a string every time the model changes.
-func (m model) View() string {
-	s := "What should we do today?\n\n"
-
-	for i, choice := range m.choices {
-		// Is the cursor pointing at this choice?
-		cursor := " " // no cursor
-		if m.cursor == i {
-			cursor = ">" // cursor!
-		}
-
-		// Is this choice selected?
-		checked := " " // not selected
-		if _, ok := m.selected[i]; ok {
-			checked = "x" // selected!
-		}
-
-		// Render the row
-		s += fmt.Sprintf("%s [%s] %s\n", cursor, checked, choice)
+func (m Model) View() string {
+	if m.width == 0 {
+		return ""
 	}
-
-	s += "\nPress q to quit.\n"
-
-	return s
+	body := m.current.View(m.width, m.height-ui.HeaderHeight)
+	return ui.Render(m.width, m.height, m.current.Title(), body)
 }
 
 func main() {
-	p := tea.NewProgram(initialModel())
+	p := tea.NewProgram(
+		Model{current: screens.NewWelcome()},
+		tea.WithAltScreen(),
+	)
 	if _, err := p.Run(); err != nil {
-		fmt.Printf("Alas, there's been an error: %v", err)
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }

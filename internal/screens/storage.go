@@ -158,7 +158,7 @@ func (s *StorageScreen) View(width, height int) string {
 
 	contentWidth := ui.ConstrainedWidth(width)
 	lines := make([]string, 0)
-	lines = append(lines, "Choose a disk and installation type:")
+	lines = append(lines, "Choose an installation type:")
 	lines = append(lines, "")
 
 	var lastFamily string

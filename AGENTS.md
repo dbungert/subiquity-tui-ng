@@ -81,6 +81,12 @@ add it to `internal/ui/`.
   (gitignored) and prints the per-function report. Don't chase
   coverage for trivial getters, `main()`, or interface types — focus
   on the rendering and capability logic.
+- **Commits represent one logical change.** Commas or "and" in the
+  subject are a smell — usually a sign to split. Closely related
+  housekeeping can ride together (e.g., adding several pre-commit
+  hooks at once is one logical change even if the subject lists them),
+  but distinct concerns don't bundle just because they happen to be
+  chores.
 
 ## Future scope worth knowing about
 

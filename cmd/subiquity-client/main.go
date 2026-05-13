@@ -69,15 +69,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, postSource(m.client, m.logger, msg.ID)
 	case sourcePostOKMsg:
 		m.current = screens.NewStorageLoading()
-		return m, tea.Batch(m.current.Init(), fetchStorageV2(m.client, m.logger), fetchStorageGuidedV2(m.client, m.logger))
+		return m, tea.Batch(m.current.Init(), fetchStorageV2(m.client, m.logger))
 	case sourcePostErrMsg:
 		return m, nil
 	case storageV2Msg:
 		m.disksByID = make(map[string]client.StorageDisk)
 		for _, d := range msg.disks {
 			m.disksByID[d.ID] = d
+			m.logger.Printf("GET /storage/v2: disk %s path=%s size=%d", d.ID, d.Path, d.Size)
 		}
-		return m, nil
+		return m, fetchStorageGuidedV2(m.client, m.logger)
 	case storageV2ErrMsg:
 		m.logger.Printf("GET /storage/v2 error: %v", msg.err)
 		return m, nil
@@ -336,11 +337,20 @@ func diskLabelFor(disksByID map[string]client.StorageDisk, diskID string) string
 func toDiskItems(targets []client.StorageReformatTarget, disksByID map[string]client.StorageDisk) []screens.DiskItem {
 	items := make([]screens.DiskItem, len(targets))
 	for i, t := range targets {
-		disk := disksByID[t.DiskID]
-		items[i] = screens.DiskItem{
-			DiskID: t.DiskID,
-			Path:   disk.Path,
-			Size:   disk.Size,
+		disk, ok := disksByID[t.DiskID]
+		if !ok {
+			// Log when disk not found in map
+			items[i] = screens.DiskItem{
+				DiskID: t.DiskID,
+				Path:   "",
+				Size:   0,
+			}
+		} else {
+			items[i] = screens.DiskItem{
+				DiskID: t.DiskID,
+				Path:   disk.Path,
+				Size:   disk.Size,
+			}
 		}
 	}
 	return items

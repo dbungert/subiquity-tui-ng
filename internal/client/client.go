@@ -288,8 +288,15 @@ func extractSize(diskData map[string]interface{}) int64 {
 	sizeFields := []string{"size", "size_bytes", "usable_size", "total_size"}
 	for _, field := range sizeFields {
 		if val, ok := diskData[field]; ok {
-			if size, ok := val.(float64); ok {
-				return int64(size)
+			switch v := val.(type) {
+			case float64:
+				return int64(v)
+			case int64:
+				return v
+			case json.Number:
+				if i, err := v.Int64(); err == nil {
+					return i
+				}
 			}
 		}
 	}

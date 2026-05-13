@@ -538,7 +538,7 @@ func TestModel_StorageV2MsgStoresDiskInfo(t *testing.T) {
 	}
 	next, cmd := m.Update(storageV2Msg{disks: disks})
 	m = next.(Model)
-	assert.Nil(t, cmd)
+	assert.NotNil(t, cmd, "storageV2Msg should trigger fetchStorageGuidedV2")
 	assert.NotNil(t, m.disksByID)
 	assert.Equal(t, "/dev/sda", m.disksByID["disk-sda"].Path)
 	assert.Equal(t, int64(500_000_000_000), m.disksByID["disk-sda"].Size)

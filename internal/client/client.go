@@ -6,10 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"strconv"
 	"time"
 )
@@ -73,9 +73,14 @@ type StorageReformatTarget struct {
 type Client struct {
 	http       *http.Client
 	socketPath string
+	logger     *log.Logger
 }
 
 func New(socketPath string) *Client {
+	return NewWithLogger(socketPath, nil)
+}
+
+func NewWithLogger(socketPath string, logger *log.Logger) *Client {
 	transport := &http.Transport{
 		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 			var d net.Dialer
@@ -83,7 +88,7 @@ func New(socketPath string) *Client {
 		},
 	}
 	httpClient := &http.Client{Transport: transport}
-	return &Client{http: httpClient, socketPath: socketPath}
+	return &Client{http: httpClient, socketPath: socketPath, logger: logger}
 }
 
 func (c *Client) MetaStatus(ctx context.Context) (*ApplicationStatus, error) {
@@ -278,27 +283,33 @@ func (c *Client) GetStorageV2(ctx context.Context) ([]StorageDisk, error) {
 			disk.Path = path
 		}
 		// Try multiple field names for size
-		disk.Size = extractSize(diskData, disk.ID)
+		disk.Size = c.extractSize(diskData, disk.ID)
 		disks[i] = disk
 	}
 	return disks, nil
 }
 
-func extractSize(diskData map[string]interface{}, diskID string) int64 {
+func (c *Client) extractSize(diskData map[string]interface{}, diskID string) int64 {
 	// Try direct size fields first
 	sizeFields := []string{"size", "size_bytes", "usable_size", "total_size"}
 	for _, field := range sizeFields {
 		if val, ok := diskData[field]; ok {
 			switch v := val.(type) {
 			case float64:
-				fmt.Fprintf(os.Stderr, "DEBUG: %s found %s as float64: %v\n", diskID, field, v)
+				if c.logger != nil {
+					c.logger.Printf("GET /storage/v2: %s found %s as float64: %v", diskID, field, v)
+				}
 				return int64(v)
 			case int64:
-				fmt.Fprintf(os.Stderr, "DEBUG: %s found %s as int64: %v\n", diskID, field, v)
+				if c.logger != nil {
+					c.logger.Printf("GET /storage/v2: %s found %s as int64: %v", diskID, field, v)
+				}
 				return v
 			case json.Number:
 				if i, err := v.Int64(); err == nil {
-					fmt.Fprintf(os.Stderr, "DEBUG: %s found %s as json.Number: %v\n", diskID, field, i)
+					if c.logger != nil {
+						c.logger.Printf("GET /storage/v2: %s found %s as json.Number: %v", diskID, field, i)
+					}
 					return i
 				}
 			}
@@ -308,12 +319,16 @@ func extractSize(diskData map[string]interface{}, diskID string) int64 {
 	// Try to get size from raw disk information if available
 	if raw, ok := diskData["raw"].(map[string]interface{}); ok {
 		if size, ok := raw["size"].(float64); ok {
-			fmt.Fprintf(os.Stderr, "DEBUG: %s found size in raw as float64: %v\n", diskID, int64(size))
+			if c.logger != nil {
+				c.logger.Printf("GET /storage/v2: %s found size in raw as float64: %v", diskID, int64(size))
+			}
 			return int64(size)
 		}
 	}
 
-	fmt.Fprintf(os.Stderr, "DEBUG: %s NO SIZE FIELD FOUND. Available keys: %v\n", diskID, getKeys(diskData))
+	if c.logger != nil {
+		c.logger.Printf("GET /storage/v2: %s NO SIZE FIELD FOUND. Available keys: %v", diskID, getKeys(diskData))
+	}
 	return 0
 }
 

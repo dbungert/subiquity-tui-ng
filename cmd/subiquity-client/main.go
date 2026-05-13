@@ -418,7 +418,7 @@ func main() {
 	}()
 
 	logger := log.New(f, "", log.LstdFlags)
-	c := client.New(args.Socket)
+	c := client.NewWithLogger(args.Socket, logger)
 
 	p := tea.NewProgram(
 		Model{

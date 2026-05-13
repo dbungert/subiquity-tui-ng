@@ -520,6 +520,63 @@ func TestPostStorageGuidedV2_ErrorOnNonOK(t *testing.T) {
 	assert.Contains(t, err.Error(), "storage configuration failed")
 }
 
+func TestGetStorageV2_HTTPGet(t *testing.T) {
+	listener, err := net.Listen("unix", "")
+	require.NoError(t, err)
+	defer func() {
+		_ = listener.Close()
+	}()
+
+	expected := []StorageDisk{
+		{ID: "disk-sda", Path: "/dev/sda"},
+		{ID: "disk-sdb", Path: "/dev/sdb"},
+	}
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/storage/v2", r.URL.Path)
+		assert.Equal(t, "GET", r.Method)
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"disks": expected})
+	})
+
+	go func() {
+		_ = http.Serve(listener, handler)
+	}()
+
+	c := New(listener.Addr().String())
+	ctx := context.Background()
+	result, err := c.GetStorageV2(ctx)
+	require.NoError(t, err)
+	assert.Len(t, result, 2)
+	assert.Equal(t, "disk-sda", result[0].ID)
+	assert.Equal(t, "/dev/sda", result[0].Path)
+	assert.Equal(t, "disk-sdb", result[1].ID)
+	assert.Equal(t, "/dev/sdb", result[1].Path)
+}
+
+func TestGetStorageV2_ErrorOnNonOK(t *testing.T) {
+	listener, err := net.Listen("unix", "")
+	require.NoError(t, err)
+	defer func() {
+		_ = listener.Close()
+	}()
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte("storage enumeration failed"))
+	})
+
+	go func() {
+		_ = http.Serve(listener, handler)
+	}()
+
+	c := New(listener.Addr().String())
+	ctx := context.Background()
+	_, err = c.GetStorageV2(ctx)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "500")
+	assert.Contains(t, err.Error(), "storage enumeration failed")
+}
+
 func boolPtr(v bool) *bool {
 	return &v
 }

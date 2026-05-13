@@ -235,6 +235,39 @@ func (c *Client) GetStorageGuidedV2(ctx context.Context) (json.RawMessage, error
 	return result, nil
 }
 
+type StorageDisk struct {
+	ID   string `json:"id"`
+	Path string `json:"path"`
+}
+
+func (c *Client) GetStorageV2(ctx context.Context) ([]StorageDisk, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", "http://localhost/storage/v2", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("GET /storage/v2 returned %d: %s", resp.StatusCode, string(body))
+	}
+
+	var response struct {
+		Disks []StorageDisk `json:"disks"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return nil, err
+	}
+	return response.Disks, nil
+}
+
 func ParseStorageGuidedTargets(raw json.RawMessage) ([]StorageReformatTarget, error) {
 	var response struct {
 		Targets []json.RawMessage `json:"targets"`

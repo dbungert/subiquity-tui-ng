@@ -542,6 +542,33 @@ func (c *Client) PostIdentity(ctx context.Context, data IdentityData) error {
 	return nil
 }
 
+func (c *Client) PostShutdown(ctx context.Context, mode string, immediate bool) error {
+	query := url.Values{}
+	modeJSON, _ := json.Marshal(mode)
+	query.Set("mode", string(modeJSON))
+	immediateJSON, _ := json.Marshal(immediate)
+	query.Set("immediate", string(immediateJSON))
+
+	req, err := http.NewRequestWithContext(ctx, "POST", "http://localhost/shutdown?"+query.Encode(), http.NoBody)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("POST /shutdown returned %d: %s", resp.StatusCode, string(body))
+	}
+	return nil
+}
+
 func isConnRefused(errStr string) bool {
 	return isConnRefusedErrno(errStr)
 }

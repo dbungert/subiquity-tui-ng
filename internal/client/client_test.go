@@ -791,6 +791,61 @@ func TestPostStorageV2_ErrorOnNonOK(t *testing.T) {
 	assert.Contains(t, err.Error(), "storage v2 post failed")
 }
 
+func TestPostShutdown_Success(t *testing.T) {
+	listener, err := net.Listen("unix", "")
+	require.NoError(t, err)
+	defer func() {
+		_ = listener.Close()
+	}()
+
+	var postCalled bool
+	var receivedMode, receivedImmediate string
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "POST" && r.URL.Path == "/shutdown" {
+			postCalled = true
+			receivedMode = r.URL.Query().Get("mode")
+			receivedImmediate = r.URL.Query().Get("immediate")
+			w.WriteHeader(http.StatusOK)
+		}
+	})
+
+	go func() {
+		_ = http.Serve(listener, handler)
+	}()
+
+	c := New(listener.Addr().String())
+	ctx := context.Background()
+	err = c.PostShutdown(ctx, "REBOOT", false)
+	require.NoError(t, err)
+	assert.True(t, postCalled)
+	assert.Equal(t, `"REBOOT"`, receivedMode)
+	assert.Equal(t, "false", receivedImmediate)
+}
+
+func TestPostShutdown_ErrorOnNonOK(t *testing.T) {
+	listener, err := net.Listen("unix", "")
+	require.NoError(t, err)
+	defer func() {
+		_ = listener.Close()
+	}()
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte("shutdown failed"))
+	})
+
+	go func() {
+		_ = http.Serve(listener, handler)
+	}()
+
+	c := New(listener.Addr().String())
+	ctx := context.Background()
+	err = c.PostShutdown(ctx, "REBOOT", false)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "500")
+	assert.Contains(t, err.Error(), "shutdown failed")
+}
+
 func boolPtr(v bool) *bool {
 	return &v
 }

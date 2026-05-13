@@ -7,10 +7,18 @@ import (
 )
 
 func Render(width, height int, title, body string) string {
-	return lipgloss.JoinVertical(lipgloss.Left,
-		Header(width, title),
-		Body(width, height-HeaderHeight, body),
-	)
+	contentWidth := ConstrainedWidth(width)
+	header := Header(contentWidth, title)
+	bodyContent := Body(contentWidth, height-HeaderHeight, body)
+
+	full := lipgloss.JoinVertical(lipgloss.Left, header, bodyContent)
+
+	// Center on wide terminals
+	if width > contentWidth {
+		full = centerLines(full, width, contentWidth)
+	}
+
+	return full
 }
 
 func Header(width int, title string) string {
@@ -38,4 +46,22 @@ func Body(width, height int, content string) string {
 		height = 1
 	}
 	return lipgloss.NewStyle().Width(width).Height(height).Render(content)
+}
+
+// centerLines adds horizontal padding to center lines within the given total width.
+// contentWidth is the expected width of the content lines (what they were rendered at).
+func centerLines(s string, totalWidth, contentWidth int) string {
+	padding := (totalWidth - contentWidth) / 2
+	lines := strings.Split(s, "\n")
+
+	for i, line := range lines {
+		w := lipgloss.Width(line)
+		rightPad := totalWidth - padding - w
+		if rightPad < 0 {
+			rightPad = 0
+		}
+		lines[i] = strings.Repeat(" ", padding) + line + strings.Repeat(" ", rightPad)
+	}
+
+	return strings.Join(lines, "\n")
 }

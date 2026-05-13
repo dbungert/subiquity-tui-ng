@@ -79,3 +79,51 @@ func TestRender_HeaderAppearsBeforeBody(t *testing.T) {
 		t.Errorf("title should appear before body content")
 	}
 }
+
+func TestConstrainedWidth_NarrowScreenUnconstrained(t *testing.T) {
+	if got := ConstrainedWidth(80); got != 80 {
+		t.Errorf("width 80 should be unconstrained, got %d", got)
+	}
+	if got := ConstrainedWidth(100); got != 100 {
+		t.Errorf("width 100 should be unconstrained, got %d", got)
+	}
+}
+
+func TestConstrainedWidth_WideScreenConstrained(t *testing.T) {
+	if got := ConstrainedWidth(150); got != MaxContentWidth {
+		t.Errorf("width 150 should constrain to %d, got %d", MaxContentWidth, got)
+	}
+	if got := ConstrainedWidth(200); got != MaxContentWidth {
+		t.Errorf("width 200 should constrain to %d, got %d", MaxContentWidth, got)
+	}
+}
+
+func TestRender_NarrowScreenUnchanged(t *testing.T) {
+	// On 80-width terminal, output should be 80 chars wide
+	out := Render(80, 10, "Test", "Body")
+	for _, line := range strings.Split(out, "\n") {
+		if got := lipgloss.Width(line); got != 80 {
+			t.Errorf("narrow screen line width %d != 80", got)
+		}
+	}
+}
+
+func TestRender_WideScreenCentered(t *testing.T) {
+	const totalWidth = 150
+	out := Render(totalWidth, 10, "Test", "Body")
+	lines := strings.Split(out, "\n")
+	if len(lines) != 10 {
+		t.Errorf("expected 10 lines, got %d", len(lines))
+	}
+	// Each line should be padded to totalWidth
+	for _, line := range lines {
+		if got := lipgloss.Width(line); got != totalWidth {
+			t.Errorf("wide screen line width %d != %d", got, totalWidth)
+		}
+	}
+	// Content should be centered with blank space on edges
+	firstLine := lines[0]
+	if !strings.HasPrefix(firstLine, " ") {
+		t.Errorf("wide screen output should be padded on left, got: %q", firstLine)
+	}
+}

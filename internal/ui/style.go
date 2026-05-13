@@ -1,8 +1,21 @@
 package ui
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"github.com/charmbracelet/lipgloss"
+)
 
-const HeaderHeight = 3
+// ConstrainedWidth returns the width to use for content, clamped to MaxContentWidth.
+func ConstrainedWidth(w int) int {
+	if w > MaxContentWidth {
+		return MaxContentWidth
+	}
+	return w
+}
+
+const (
+	HeaderHeight    = 3
+	MaxContentWidth = 120 // content narrower than this on wide terminals
+)
 
 const (
 	UpperHalfBlock = "▀"

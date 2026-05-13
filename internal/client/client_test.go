@@ -589,11 +589,7 @@ func TestPostMetaConfirm_SendsCorrectRequest(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "/meta/confirm", r.URL.Path)
 		assert.Equal(t, "POST", r.Method)
-		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
-		var tty string
-		err := json.NewDecoder(r.Body).Decode(&tty)
-		require.NoError(t, err)
-		assert.Equal(t, "/dev/tty1", tty)
+		assert.Equal(t, "\"/dev/tty1\"", r.URL.Query().Get("tty"))
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -629,6 +625,58 @@ func TestPostMetaConfirm_ErrorOnNonOK(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "500")
 	assert.Contains(t, err.Error(), "confirmation failed")
+}
+
+func TestPostMarkConfigured_SendsCorrectRequest(t *testing.T) {
+	listener, err := net.Listen("unix", "")
+	require.NoError(t, err)
+	defer func() {
+		_ = listener.Close()
+	}()
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/meta/mark_configured", r.URL.Path)
+		assert.Equal(t, "POST", r.Method)
+		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
+		var endpoints []string
+		err := json.NewDecoder(r.Body).Decode(&endpoints)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"network", "snaplist", "ubuntu_pro", "drivers", "ssh", "proxy", "keyboard", "mirror"}, endpoints)
+		w.WriteHeader(http.StatusOK)
+	})
+
+	go func() {
+		_ = http.Serve(listener, handler)
+	}()
+
+	c := New(listener.Addr().String())
+	ctx := context.Background()
+	err = c.PostMarkConfigured(ctx, []string{"network", "snaplist", "ubuntu_pro", "drivers", "ssh", "proxy", "keyboard", "mirror"})
+	require.NoError(t, err)
+}
+
+func TestPostMarkConfigured_ErrorOnNonOK(t *testing.T) {
+	listener, err := net.Listen("unix", "")
+	require.NoError(t, err)
+	defer func() {
+		_ = listener.Close()
+	}()
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte("mark configured failed"))
+	})
+
+	go func() {
+		_ = http.Serve(listener, handler)
+	}()
+
+	c := New(listener.Addr().String())
+	ctx := context.Background()
+	err = c.PostMarkConfigured(ctx, []string{"network"})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "500")
+	assert.Contains(t, err.Error(), "mark configured failed")
 }
 
 func boolPtr(v bool) *bool {

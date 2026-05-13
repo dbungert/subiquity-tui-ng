@@ -408,12 +408,37 @@ func (c *Client) PostStorageGuidedV2(ctx context.Context, choice GuidedChoiceV2)
 }
 
 func (c *Client) PostMetaConfirm(ctx context.Context, tty string) error {
-	body, err := json.Marshal(tty)
+	query := url.Values{}
+	ttyJSON, _ := json.Marshal(tty)
+	query.Set("tty", string(ttyJSON))
+
+	req, err := http.NewRequestWithContext(ctx, "POST", "http://localhost/meta/confirm?"+query.Encode(), nil)
 	if err != nil {
 		return err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", "http://localhost/meta/confirm", bytes.NewReader(body))
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("POST /meta/confirm returned %d: %s", resp.StatusCode, string(body))
+	}
+	return nil
+}
+
+func (c *Client) PostMarkConfigured(ctx context.Context, endpoints []string) error {
+	body, err := json.Marshal(endpoints)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", "http://localhost/meta/mark_configured", bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
@@ -429,7 +454,7 @@ func (c *Client) PostMetaConfirm(ctx context.Context, tty string) error {
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("POST /meta/confirm returned %d: %s", resp.StatusCode, string(body))
+		return fmt.Errorf("POST /meta/mark_configured returned %d: %s", resp.StatusCode, string(body))
 	}
 	return nil
 }

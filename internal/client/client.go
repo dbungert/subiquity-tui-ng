@@ -135,6 +135,35 @@ func (c *Client) MetaStatusWithRetry(ctx context.Context, maxRetries int) (*Appl
 	return nil, context.Canceled
 }
 
+func (c *Client) MetaStatusWait(ctx context.Context, currentState ApplicationState) (*ApplicationStatus, error) {
+	query := url.Values{}
+	stateJSON, _ := json.Marshal(string(currentState))
+	query.Set("wait", string(stateJSON))
+	req, err := http.NewRequestWithContext(ctx, "GET", "http://localhost/meta/status?"+query.Encode(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("meta/status returned %d: %s", resp.StatusCode, string(body))
+	}
+
+	var status ApplicationStatus
+	if err := json.NewDecoder(resp.Body).Decode(&status); err != nil {
+		return nil, err
+	}
+	return &status, nil
+}
+
 func (c *Client) PostLocale(ctx context.Context, locale string) error {
 	body, err := json.Marshal(locale)
 	if err != nil {

@@ -151,7 +151,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case metaConfirmOKMsg:
 		m.logger.Printf("meta/confirm: ok")
 		m.current = screens.NewInstallProgress()
-		return m, tea.Batch(m.current.Init(), fetchMetaStatus(m.client, m.logger))
+		return m, tea.Batch(m.current.Init(), fetchInstallStatus(m.client, m.logger, client.ApplicationStateWaiting))
 	case metaConfirmErrMsg:
 		m.logger.Printf("POST /meta/confirm error: %v", msg.err)
 		return m, nil
@@ -176,6 +176,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case markConfiguredErrMsg:
 		m.logger.Printf("POST /meta/mark_configured error: %v", msg.err)
+		return m, nil
+	case installStatusMsg:
+		m.logger.Printf("install status: %s", msg.status.State)
+		m.current, _ = m.current.Update(screens.InstallProgressStateMsg{State: string(msg.status.State)})
+		terminal := msg.status.State == client.ApplicationStateDone ||
+			msg.status.State == client.ApplicationStateError ||
+			msg.status.State == client.ApplicationStateExited
+		if terminal {
+			return m, nil
+		}
+		return m, fetchInstallStatus(m.client, m.logger, msg.status.State)
+	case installStatusErrMsg:
+		m.logger.Printf("install status poll error: %v", msg.err)
 		return m, nil
 	case screens.ConfirmCancelMsg:
 		var label string
@@ -281,6 +294,14 @@ type markConfiguredErrMsg struct {
 type identityPostOKMsg struct{}
 
 type identityPostErrMsg struct {
+	err error
+}
+
+type installStatusMsg struct {
+	status *client.ApplicationStatus
+}
+
+type installStatusErrMsg struct {
 	err error
 }
 
@@ -456,6 +477,20 @@ func fetchMetaStatus(c *client.Client, logger *log.Logger) tea.Cmd {
 			return metaStatusErrMsg{err: err}
 		}
 		return metaStatusMsg{status: status}
+	}
+}
+
+func fetchInstallStatus(c *client.Client, logger *log.Logger, currentState client.ApplicationState) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancel()
+		status, err := c.MetaStatusWait(ctx, currentState)
+		if err != nil {
+			logger.Printf("GET /meta/status?wait error: %v", err)
+			return installStatusErrMsg{err: err}
+		}
+		logger.Printf("meta/status transition: %s", status.State)
+		return installStatusMsg{status: status}
 	}
 }
 

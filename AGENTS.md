@@ -15,7 +15,6 @@ TUI, not the server or the curtin integration (yet).
 
 ## What this project is not (yet)
 
-- Not a working installer. No server, no curtin, no API client.
 - Not feature-complete with upstream. Screens land one at a time.
 - Not a port — it's a rewrite. We don't need to mirror urwid
   abstractions; Bubble Tea / Lipgloss already give us scrolling,
@@ -88,10 +87,24 @@ add it to `internal/ui/`.
   but distinct concerns don't bundle just because they happen to be
   chores.
 
+## Screen flow and API integration
+
+- **Server interaction.** HTTP client in `internal/client/client.go` communicates
+  with subiquity server over unix socket at `/run/subiquity/socket` (or
+  `.subiquity/socket` in test mode). Async commands (`tea.Cmd`) fetch data and
+  post selections back.
+- **Screen sequence:** Language → Source → Storage (disk selection & capability) →
+  Confirm (destructive-action confirmation) → Keyboard → ... See `main.go` for
+  handler routing and message types.
+- **Subiquity API: JSON encoding in query parameters.** Parameters like `source_id`
+  and `tty` must be JSON-encoded (with quotes) before URL encoding in the query
+  string. E.g., `tty=/dev/tty1` becomes `?tty=%22%2Fdev%2Ftty1%22` (URL-encoded
+  `"/dev/tty1"`). This is pervasive; always check upstream Python handlers or test
+  with actual server before assuming plain strings work.
+
 ## Language screen (`internal/screens/language.go`)
 
-- **Replaces the welcome screen stub** as the first screen wired in `main.go`.
-  `welcome.go` is kept but unused.
+- **First screen presented** in `main.go` on app start.
 - **Live type-ahead filter.** Typing any character appends to the filter;
   the list narrows to entries whose native or English name contains the query
   (case-insensitive). Backspace/Ctrl+H removes the last rune; Esc clears
@@ -108,20 +121,18 @@ add it to `internal/ui/`.
   rules. Current design: description → search line with `█` cursor and live match
   count → scrollable list with `> ` selection prefix and orange highlight row →
   key-hint bar. No button stack (Enter directly confirms inline).
-- **Screen transition on Enter is a stub.** `LanguageScreen.Update` returns itself
-  on Enter; wire it to `KeyboardScreen` (not yet implemented) when that screen lands.
+- **On Enter,** posts locale to server and transitions to Source screen.
 
 ## Future scope worth knowing about
 
-- **Client / server split.** Real subiquity is HTTP-over-unix-socket
-  at `/run/subiquity/socket`, long-poll status updates. Eventually we
-  need an API client; this POC has no server interaction.
 - **Autoinstall mode** in upstream bypasses the TUI entirely. Not in
   scope yet, but the `Screen` interface should not assume interactivity
   is mandatory forever.
-- **Screen sequence:** Language → Keyboard → Network → ... The
-  upstream order lives in `subiquity.client.client`; consult that when
-  adding the next screen.
+- **Keyboard / Network / Proxy / Identity screens** come next in the upstream
+  sequence. Consult `subiquity.client.client` in the upstream tree for
+  ordering and interactions.
+- **Error recovery.** Current screens transition linearly; no back-button or
+  error-state handling. Real subiquity allows rework of previous screens.
 
 ## Where the upstream lives
 

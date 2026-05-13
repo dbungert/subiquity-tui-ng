@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -38,6 +40,7 @@ type Model struct {
 	pendingUsername   string
 	pendingRealname   string
 	pendingPassword   string
+	journalStarted    bool
 }
 
 func (m Model) Init() tea.Cmd {
@@ -187,7 +190,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.current = screens.NewRebootScreen(string(msg.status.State))
 			return m, m.current.Init()
 		}
-		return m, fetchInstallStatus(m.client, m.logger, msg.status.State)
+		var journalCmd tea.Cmd
+		if !m.journalStarted && msg.status.LogSyslogID != "" {
+			m.journalStarted = true
+			journalCmd = startJournalFollow(msg.status.LogSyslogID)
+		}
+		return m, tea.Batch(fetchInstallStatus(m.client, m.logger, msg.status.State), journalCmd)
 	case installStatusErrMsg:
 		m.logger.Printf("install status poll error: %v", msg.err)
 		return m, nil
@@ -200,6 +208,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	case shutdownErrMsg:
 		m.logger.Printf("POST /shutdown error: %v", msg.err)
+		return m, nil
+	case journalLineMsg:
+		if _, ok := m.current.(*screens.InstallProgress); ok {
+			m.current, _ = m.current.Update(screens.InstallLogLineMsg{Line: msg.line})
+			return m, readNextJournalLine(msg.scanner)
+		}
+		return m, nil
+	case journalErrMsg:
+		m.logger.Printf("journal read error: %v", msg.err)
+		return m, nil
+	case journalEOFMsg:
 		return m, nil
 	case screens.ConfirmCancelMsg:
 		var label string
@@ -321,6 +340,17 @@ type shutdownOKMsg struct{}
 type shutdownErrMsg struct {
 	err error
 }
+
+type journalLineMsg struct {
+	line    string
+	scanner *bufio.Scanner
+}
+
+type journalErrMsg struct {
+	err error
+}
+
+type journalEOFMsg struct{}
 
 func postSource(c *client.Client, logger *log.Logger, id string) tea.Cmd {
 	return func() tea.Msg {
@@ -521,6 +551,40 @@ func postShutdown(c *client.Client, logger *log.Logger) tea.Cmd {
 		}
 		logger.Printf("POST /shutdown: ok")
 		return shutdownOKMsg{}
+	}
+}
+
+func startJournalFollow(syslogID string) tea.Cmd {
+	return func() tea.Msg {
+		cmd := exec.Command("journalctl", "--follow", "--no-pager",
+			"--lines=50", "--identifier="+syslogID, "--output=cat")
+		stdout, err := cmd.StdoutPipe()
+		if err != nil {
+			return journalErrMsg{err: err}
+		}
+		if err := cmd.Start(); err != nil {
+			return journalErrMsg{err: err}
+		}
+		scanner := bufio.NewScanner(stdout)
+		if scanner.Scan() {
+			return journalLineMsg{line: scanner.Text(), scanner: scanner}
+		}
+		if err := scanner.Err(); err != nil {
+			return journalErrMsg{err: err}
+		}
+		return journalEOFMsg{}
+	}
+}
+
+func readNextJournalLine(scanner *bufio.Scanner) tea.Cmd {
+	return func() tea.Msg {
+		if scanner.Scan() {
+			return journalLineMsg{line: scanner.Text(), scanner: scanner}
+		}
+		if err := scanner.Err(); err != nil {
+			return journalErrMsg{err: err}
+		}
+		return journalEOFMsg{}
 	}
 }
 

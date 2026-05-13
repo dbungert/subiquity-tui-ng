@@ -11,6 +11,7 @@ import (
 
 	"github.com/alexflint/go-arg"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/GehirnInc/crypt/sha512_crypt"
 
 	"subiquity-ng/internal/client"
 	"subiquity-ng/internal/logging"
@@ -23,17 +24,20 @@ type Args struct {
 }
 
 type Model struct {
-	width, height  int
-	current        screens.Screen
-	socket         string
-	client         *client.Client
-	logger         *log.Logger
-	sourceData     *client.SourceSelectionAndSetting
-	storageTargets []client.StorageReformatTarget
-	storageItems   []screens.StorageItem
-	disksByID      map[string]client.StorageDisk
+	width, height     int
+	current           screens.Screen
+	socket            string
+	client            *client.Client
+	logger            *log.Logger
+	sourceData        *client.SourceSelectionAndSetting
+	storageTargets    []client.StorageReformatTarget
+	storageItems      []screens.StorageItem
+	disksByID         map[string]client.StorageDisk
 	pendingDiskLabel  string
 	pendingCapability string
+	pendingUsername   string
+	pendingRealname   string
+	pendingPassword   string
 }
 
 func (m Model) Init() tea.Cmd {
@@ -137,8 +141,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case storagePostOKMsg:
 		m.logger.Printf("storage configured successfully")
-		m.current = screens.NewConfirm(m.pendingDiskLabel, m.pendingCapability)
-		return m, nil
+		m.current = screens.NewUserIdentity()
+		return m, m.current.Init()
 	case storagePostErrMsg:
 		m.logger.Printf("POST /storage/v2/guided error: %v", msg.err)
 		return m, nil
@@ -150,6 +154,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(m.current.Init(), fetchMetaStatus(m.client, m.logger))
 	case metaConfirmErrMsg:
 		m.logger.Printf("POST /meta/confirm error: %v", msg.err)
+		return m, nil
+	case screens.UserIdentityDoneMsg:
+		m.pendingRealname = msg.Realname
+		m.pendingUsername = msg.Username
+		m.pendingPassword = msg.Password
+		m.current = screens.NewHostIdentity()
+		return m, m.current.Init()
+	case screens.HostIdentityDoneMsg:
+		return m, postIdentity(m.client, m.logger,
+			m.pendingRealname, m.pendingUsername, m.pendingPassword, msg.Hostname)
+	case identityPostOKMsg:
+		m.logger.Printf("POST /identity: ok")
+		m.current = screens.NewConfirm(m.pendingDiskLabel, m.pendingCapability)
+		return m, m.current.Init()
+	case identityPostErrMsg:
+		m.logger.Printf("POST /identity error: %v", msg.err)
 		return m, nil
 	case markConfiguredOKMsg:
 		m.logger.Printf("mark_configured: ok")
@@ -255,6 +275,12 @@ type metaConfirmErrMsg struct {
 type markConfiguredOKMsg struct{}
 
 type markConfiguredErrMsg struct {
+	err error
+}
+
+type identityPostOKMsg struct{}
+
+type identityPostErrMsg struct {
 	err error
 }
 
@@ -372,6 +398,33 @@ func postMarkConfigured(c *client.Client, logger *log.Logger) tea.Cmd {
 		}
 		logger.Printf("POST /meta/mark_configured: ok")
 		return markConfiguredOKMsg{}
+	}
+}
+
+func postIdentity(c *client.Client, logger *log.Logger, realname, username, password, hostname string) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		crypHandler := sha512_crypt.New()
+		crypted, err := crypHandler.Generate([]byte(password), nil)
+		if err != nil {
+			logger.Printf("password hashing error: %v", err)
+			return identityPostErrMsg{err: err}
+		}
+
+		data := client.IdentityData{
+			Realname:        realname,
+			Username:        username,
+			CryptedPassword: crypted,
+			Hostname:        hostname,
+		}
+		if err := c.PostIdentity(ctx, data); err != nil {
+			logger.Printf("POST /identity error: %v", err)
+			return identityPostErrMsg{err: err}
+		}
+		logger.Printf("POST /identity: ok (username=%s hostname=%s)", username, hostname)
+		return identityPostOKMsg{}
 	}
 }
 

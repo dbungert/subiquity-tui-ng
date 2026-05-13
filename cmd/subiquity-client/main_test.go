@@ -455,8 +455,8 @@ func TestModel_StoragePostOKTransitionsToConfirm(t *testing.T) {
 
 	next, _ := m.Update(storagePostOKMsg{})
 	m = next.(Model)
-	_, ok := m.current.(*screens.ConfirmScreen)
-	assert.True(t, ok, "expected current screen to be ConfirmScreen")
+	_, ok := m.current.(*screens.UserIdentityScreen)
+	assert.True(t, ok, "expected current screen to be UserIdentityScreen")
 }
 
 func TestModel_ConfirmAcceptedFiresPostConfirm(t *testing.T) {

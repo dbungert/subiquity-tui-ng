@@ -194,6 +194,32 @@ func (c *Client) PostSource(ctx context.Context, sourceID string, searchDrivers 
 	return nil
 }
 
+func (c *Client) GetStorageGuidedV2(ctx context.Context) (json.RawMessage, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", "http://localhost/storage/v2/guided", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("GET /storage/v2/guided returned %d: %s", resp.StatusCode, string(body))
+	}
+
+	var result json.RawMessage
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
 func isConnRefused(errStr string) bool {
 	return isConnRefusedErrno(errStr)
 }

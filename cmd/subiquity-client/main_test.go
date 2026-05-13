@@ -275,7 +275,7 @@ func TestModel_SourceSelectedMsgFiresPostCmd(t *testing.T) {
 	assert.NotNil(t, cmd)
 }
 
-func TestModel_SourcePostOKTransitionsToKeyboard(t *testing.T) {
+func TestModel_SourcePostOKTransitionsToStorage(t *testing.T) {
 	var buf bytes.Buffer
 	logger := log.New(&buf, "", 0)
 	m := Model{
@@ -286,7 +286,42 @@ func TestModel_SourcePostOKTransitionsToKeyboard(t *testing.T) {
 
 	next, cmd := m.Update(sourcePostOKMsg{})
 	m = next.(Model)
+	assert.NotNil(t, cmd, "expected cmd to fetch storage")
+	_, ok := m.current.(*screens.StorageScreen)
+	assert.True(t, ok, "expected current screen to be StorageScreen")
+}
+
+func TestModel_StorageGuidedMsgUpdatesScreen(t *testing.T) {
+	var buf bytes.Buffer
+	logger := log.New(&buf, "", 0)
+	m := Model{
+		current: screens.NewStorage(""),
+		client:  client.New(".subiquity/socket"),
+		logger:  logger,
+	}
+
+	jsonData := `{"status":"DONE","targets":[]}`
+	next, cmd := m.Update(storageGuidedMsg{raw: jsonData})
+	m = next.(Model)
 	assert.Nil(t, cmd)
-	_, ok := m.current.(*screens.Keyboard)
-	assert.True(t, ok, "expected current screen to be Keyboard")
+	storageScreen, ok := m.current.(*screens.StorageScreen)
+	assert.True(t, ok, "expected current screen to be StorageScreen")
+	assert.Contains(t, storageScreen.View(80, 24), jsonData)
+}
+
+func TestModel_StorageGuidedErrLogsAndStays(t *testing.T) {
+	var buf bytes.Buffer
+	logger := log.New(&buf, "", 0)
+	startScreen := screens.NewStorage("initial")
+	m := Model{
+		current: startScreen,
+		client:  client.New(".subiquity/socket"),
+		logger:  logger,
+	}
+
+	next, cmd := m.Update(storageGuidedErrMsg{err: os.ErrNotExist})
+	m = next.(Model)
+	assert.Nil(t, cmd)
+	assert.Equal(t, startScreen, m.current)
+	assert.Contains(t, buf.String(), "GET /storage/v2/guided error:")
 }

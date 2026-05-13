@@ -302,6 +302,57 @@ func TestPostSource_ErrorOnNonOK(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid source")
 }
 
+func TestGetStorageGuidedV2_HTTPGet(t *testing.T) {
+	listener, err := net.Listen("unix", "")
+	require.NoError(t, err)
+	defer func() {
+		_ = listener.Close()
+	}()
+
+	expected := json.RawMessage(`{"status":"DONE","targets":[]}`)
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/storage/v2/guided", r.URL.Path)
+		assert.Equal(t, "GET", r.Method)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(expected)
+	})
+
+	go func() {
+		_ = http.Serve(listener, handler)
+	}()
+
+	c := New(listener.Addr().String())
+	ctx := context.Background()
+	result, err := c.GetStorageGuidedV2(ctx)
+	require.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, expected, result)
+}
+
+func TestGetStorageGuidedV2_ErrorOnNonOK(t *testing.T) {
+	listener, err := net.Listen("unix", "")
+	require.NoError(t, err)
+	defer func() {
+		_ = listener.Close()
+	}()
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte("probe still running"))
+	})
+
+	go func() {
+		_ = http.Serve(listener, handler)
+	}()
+
+	c := New(listener.Addr().String())
+	ctx := context.Background()
+	_, err = c.GetStorageGuidedV2(ctx)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "500")
+	assert.Contains(t, err.Error(), "probe still running")
+}
+
 func boolPtr(v bool) *bool {
 	return &v
 }

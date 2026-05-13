@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"os"
 	"path/filepath"
@@ -65,9 +66,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case screens.SourceSelectedMsg:
 		return m, postSource(m.client, m.logger, msg.ID)
 	case sourcePostOKMsg:
-		m.current = screens.NewKeyboard()
-		return m, m.current.Init()
+		m.current = screens.NewStorage("")
+		return m, tea.Batch(m.current.Init(), fetchStorageGuidedV2(m.client, m.logger))
 	case sourcePostErrMsg:
+		return m, nil
+	case storageGuidedMsg:
+		m.current = screens.NewStorage(msg.raw)
+		return m, nil
+	case storageGuidedErrMsg:
+		m.logger.Printf("GET /storage/v2/guided error: %v", msg.err)
 		return m, nil
 	}
 	var cmd tea.Cmd
@@ -129,6 +136,14 @@ type sourcePostErrMsg struct {
 	err error
 }
 
+type storageGuidedMsg struct {
+	raw string
+}
+
+type storageGuidedErrMsg struct {
+	err error
+}
+
 func postSource(c *client.Client, logger *log.Logger, id string) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -139,6 +154,21 @@ func postSource(c *client.Client, logger *log.Logger, id string) tea.Cmd {
 		}
 		logger.Printf("POST /source: ok (id=%s)", id)
 		return sourcePostOKMsg{}
+	}
+}
+
+func fetchStorageGuidedV2(c *client.Client, logger *log.Logger) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		raw, err := c.GetStorageGuidedV2(ctx)
+		if err != nil {
+			logger.Printf("GET /storage/v2/guided error: %v", err)
+			return storageGuidedErrMsg{err: err}
+		}
+		pretty, _ := json.MarshalIndent(raw, "", "  ")
+		logger.Printf("GET /storage/v2/guided: ok (%d bytes)", len(raw))
+		return storageGuidedMsg{raw: string(pretty)}
 	}
 }
 

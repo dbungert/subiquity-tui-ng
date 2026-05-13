@@ -313,6 +313,7 @@ func TestGetStorageGuidedV2_HTTPGet(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "/storage/v2/guided", r.URL.Path)
 		assert.Equal(t, "GET", r.Method)
+		assert.Equal(t, "true", r.URL.Query().Get("wait"))
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(expected)
 	})

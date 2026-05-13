@@ -195,7 +195,7 @@ func (c *Client) PostSource(ctx context.Context, sourceID string, searchDrivers 
 }
 
 func (c *Client) GetStorageGuidedV2(ctx context.Context) (json.RawMessage, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", "http://localhost/storage/v2/guided", nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", "http://localhost/storage/v2/guided?wait=true", nil)
 	if err != nil {
 		return nil, err
 	}

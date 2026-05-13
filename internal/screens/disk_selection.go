@@ -97,6 +97,10 @@ func (d *DiskSelectionScreen) View(width, height int) string {
 }
 
 func humanSize(bytes int64) string {
+	if bytes == 0 {
+		return "Unknown"
+	}
+
 	const (
 		kb = 1000
 		mb = 1000 * kb

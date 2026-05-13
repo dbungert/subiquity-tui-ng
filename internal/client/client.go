@@ -261,12 +261,47 @@ func (c *Client) GetStorageV2(ctx context.Context) ([]StorageDisk, error) {
 	}
 
 	var response struct {
-		Disks []StorageDisk `json:"disks"`
+		Disks []map[string]interface{} `json:"disks"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
 		return nil, err
 	}
-	return response.Disks, nil
+
+	disks := make([]StorageDisk, len(response.Disks))
+	for i, diskData := range response.Disks {
+		disk := StorageDisk{}
+		if id, ok := diskData["id"].(string); ok {
+			disk.ID = id
+		}
+		if path, ok := diskData["path"].(string); ok {
+			disk.Path = path
+		}
+		// Try multiple field names for size
+		disk.Size = extractSize(diskData)
+		disks[i] = disk
+	}
+	return disks, nil
+}
+
+func extractSize(diskData map[string]interface{}) int64 {
+	// Try direct size fields first
+	sizeFields := []string{"size", "size_bytes", "usable_size", "total_size"}
+	for _, field := range sizeFields {
+		if val, ok := diskData[field]; ok {
+			if size, ok := val.(float64); ok {
+				return int64(size)
+			}
+		}
+	}
+
+	// Try to get size from raw disk information if available
+	if raw, ok := diskData["raw"].(map[string]interface{}); ok {
+		if size, ok := raw["size"].(float64); ok {
+			return int64(size)
+		}
+	}
+
+	return 0
 }
 
 func ParseStorageGuidedTargets(raw json.RawMessage) ([]StorageReformatTarget, error) {

@@ -77,7 +77,7 @@ add it to `internal/ui/`.
   once per clone. Config in `.golangci.yml` and `.pre-commit-config.yaml`.
   Bumping the `golangci-lint` rev: `pre-commit autoupdate`.
 - **Tests aim for high coverage, not 100%.** `make test` prints the
-  per-package percentage; `make coverage` writes `coverage.out`
+  per-package percentage; `make coverage` writes `.coverage.out`
   (gitignored) and prints the per-function report. Don't chase
   coverage for trivial getters, `main()`, or interface types — focus
   on the rendering and capability logic.

@@ -291,7 +291,7 @@ func TestModel_SourcePostOKTransitionsToStorage(t *testing.T) {
 	assert.True(t, ok, "expected current screen to be StorageScreen")
 }
 
-func TestModel_StorageGuidedMsgBuildsItems(t *testing.T) {
+func TestModel_StorageGuidedMsgSingleDiskSkipsDiskSelection(t *testing.T) {
 	var buf bytes.Buffer
 	logger := log.New(&buf, "", 0)
 	m := Model{
@@ -313,10 +313,43 @@ func TestModel_StorageGuidedMsgBuildsItems(t *testing.T) {
 	m = next.(Model)
 	assert.Nil(t, cmd)
 	storageScreen, ok := m.current.(*screens.StorageScreen)
-	assert.True(t, ok, "expected current screen to be StorageScreen")
+	assert.True(t, ok, "expected current screen to be StorageScreen for single disk")
 	view := storageScreen.View(80, 24)
-	assert.Contains(t, view, "disk-sda")
 	assert.Contains(t, view, "Direct")
+}
+
+func TestModel_StorageGuidedMsgMultipleDiskShowsDiskSelection(t *testing.T) {
+	var buf bytes.Buffer
+	logger := log.New(&buf, "", 0)
+	m := Model{
+		current: screens.NewStorageLoading(),
+		client:  client.New(".subiquity/socket"),
+		logger:  logger,
+	}
+
+	targets := []client.StorageReformatTarget{
+		{
+			DiskID: "disk-sda",
+			Allowed: []client.GuidedCapability{
+				client.CapabilityDirect,
+				client.CapabilityLVM,
+			},
+		},
+		{
+			DiskID: "disk-sdb",
+			Allowed: []client.GuidedCapability{
+				client.CapabilityDirect,
+			},
+		},
+	}
+	next, cmd := m.Update(storageGuidedMsg{targets: targets})
+	m = next.(Model)
+	assert.Nil(t, cmd)
+	diskScreen, ok := m.current.(*screens.DiskSelectionScreen)
+	assert.True(t, ok, "expected current screen to be DiskSelectionScreen for multiple disks")
+	view := diskScreen.View(80, 24)
+	assert.Contains(t, view, "disk-sda")
+	assert.Contains(t, view, "disk-sdb")
 }
 
 func TestModel_StorageCapabilitySelectedLogsOnPost(t *testing.T) {
@@ -422,4 +455,70 @@ func TestModel_StoragePostOKTransitionsToKeyboard(t *testing.T) {
 	m = next.(Model)
 	_, ok := m.current.(*screens.Keyboard)
 	assert.True(t, ok, "expected current screen to be Keyboard")
+}
+
+func TestModel_DiskSelectedMsgTransitionsToStorage(t *testing.T) {
+	var buf bytes.Buffer
+	logger := log.New(&buf, "", 0)
+	targets := []client.StorageReformatTarget{
+		{
+			DiskID: "disk-sda",
+			Allowed: []client.GuidedCapability{
+				client.CapabilityDirect,
+				client.CapabilityLVM,
+			},
+		},
+		{
+			DiskID: "disk-sdb",
+			Allowed: []client.GuidedCapability{
+				client.CapabilityDirect,
+			},
+		},
+	}
+	m := Model{
+		current:        screens.NewDiskSelection(nil),
+		client:         client.New(".subiquity/socket"),
+		logger:         logger,
+		storageTargets: targets,
+	}
+
+	next, cmd := m.Update(screens.DiskSelectedMsg{DiskID: "disk-sda"})
+	m = next.(Model)
+	assert.Nil(t, cmd)
+	_, ok := m.current.(*screens.StorageScreen)
+	assert.True(t, ok, "expected current screen to be StorageScreen")
+	assert.NotEmpty(t, m.storageItems)
+}
+
+func TestModel_DiskSelectedMsgFiltersCapabilities(t *testing.T) {
+	var buf bytes.Buffer
+	logger := log.New(&buf, "", 0)
+	targets := []client.StorageReformatTarget{
+		{
+			DiskID: "disk-sda",
+			Allowed: []client.GuidedCapability{
+				client.CapabilityDirect,
+				client.CapabilityLVM,
+			},
+		},
+		{
+			DiskID: "disk-sdb",
+			Allowed: []client.GuidedCapability{
+				client.CapabilityDirect,
+				client.CapabilityZFS,
+			},
+		},
+	}
+	m := Model{
+		current:        screens.NewDiskSelection(nil),
+		client:         client.New(".subiquity/socket"),
+		logger:         logger,
+		storageTargets: targets,
+	}
+
+	next, _ := m.Update(screens.DiskSelectedMsg{DiskID: "disk-sda"})
+	m = next.(Model)
+	assert.Equal(t, 2, len(m.storageItems), "sda should have 2 capabilities")
+	assert.Equal(t, "DIRECT", m.storageItems[0].Capability)
+	assert.Equal(t, "LVM", m.storageItems[1].Capability)
 }

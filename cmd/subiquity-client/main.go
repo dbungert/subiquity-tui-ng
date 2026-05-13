@@ -21,13 +21,14 @@ type Args struct {
 }
 
 type Model struct {
-	width, height int
-	current       screens.Screen
-	socket        string
-	client        *client.Client
-	logger        *log.Logger
-	sourceData    *client.SourceSelectionAndSetting
-	storageItems  []screens.StorageItem
+	width, height  int
+	current        screens.Screen
+	socket         string
+	client         *client.Client
+	logger         *log.Logger
+	sourceData     *client.SourceSelectionAndSetting
+	storageTargets []client.StorageReformatTarget
+	storageItems   []screens.StorageItem
 }
 
 func (m Model) Init() tea.Cmd {
@@ -71,7 +72,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case sourcePostErrMsg:
 		return m, nil
 	case storageGuidedMsg:
-		items := toStorageItems(msg.targets)
+		m.storageTargets = msg.targets
+		if len(msg.targets) == 1 {
+			items := capabilitiesForDisk(msg.targets, msg.targets[0].DiskID)
+			m.storageItems = items
+			m.current = screens.NewStorage(items)
+		} else {
+			diskItems := toDiskItems(msg.targets)
+			m.current = screens.NewDiskSelection(diskItems)
+		}
+		return m, nil
+	case screens.DiskSelectedMsg:
+		items := capabilitiesForDisk(m.storageTargets, msg.DiskID)
 		m.storageItems = items
 		m.current = screens.NewStorage(items)
 		return m, nil
@@ -273,6 +285,37 @@ func sourceCurrentID(d *client.SourceSelectionAndSetting) string {
 		return ""
 	}
 	return d.CurrentID
+}
+
+func toDiskItems(targets []client.StorageReformatTarget) []screens.DiskItem {
+	items := make([]screens.DiskItem, len(targets))
+	for i, t := range targets {
+		allowed := make([]string, len(t.Allowed))
+		for j, c := range t.Allowed {
+			allowed[j] = string(c)
+		}
+		items[i] = screens.DiskItem{
+			DiskID:  t.DiskID,
+			Allowed: allowed,
+		}
+	}
+	return items
+}
+
+func capabilitiesForDisk(targets []client.StorageReformatTarget, diskID string) []screens.StorageItem {
+	for _, t := range targets {
+		if t.DiskID == diskID {
+			var items []screens.StorageItem
+			for _, cap := range t.Allowed {
+				items = append(items, screens.StorageItem{
+					DiskID:     t.DiskID,
+					Capability: string(cap),
+				})
+			}
+			return items
+		}
+	}
+	return nil
 }
 
 func toStorageItems(targets []client.StorageReformatTarget) []screens.StorageItem {

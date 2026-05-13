@@ -7,10 +7,10 @@ import (
 )
 
 func Render(width, height int, title, body string) string {
-	// Header spans full width; body is constrained and centered
-	header := Header(width, title)
-
 	contentWidth := ConstrainedWidth(width)
+	// Header spans full width with title positioned in centered area
+	header := Header(width, contentWidth, title)
+
 	bodyContent := Body(contentWidth, height-HeaderHeight, body)
 
 	// Center body on wide terminals
@@ -21,22 +21,33 @@ func Render(width, height int, title, body string) string {
 	return lipgloss.JoinVertical(lipgloss.Left, header, bodyContent)
 }
 
-func Header(width int, title string) string {
+// Header renders a 3-line header with orange background spanning fullWidth.
+// The title and help text are positioned within contentWidth and centered.
+func Header(fullWidth, contentWidth int, title string) string {
 	var above, below string
 	if useHalfBlocks {
-		above = HalfBlockStyle.Render(strings.Repeat(LowerHalfBlock, width))
-		below = HalfBlockStyle.Render(strings.Repeat(UpperHalfBlock, width))
+		above = HalfBlockStyle.Render(strings.Repeat(LowerHalfBlock, fullWidth))
+		below = HalfBlockStyle.Render(strings.Repeat(UpperHalfBlock, fullWidth))
 	} else {
-		above = HeaderStyle.Width(width).Render("")
+		above = HeaderStyle.Width(fullWidth).Render("")
 		below = above
 	}
 
 	const helpText = "[ Help ]"
-	pad := width - lipgloss.Width(title) - lipgloss.Width(helpText) - 2
-	if pad < 1 {
-		pad = 1
+	contentPad := contentWidth - lipgloss.Width(title) - lipgloss.Width(helpText) - 2
+	if contentPad < 1 {
+		contentPad = 1
 	}
-	mid := HeaderStyle.Render(" " + title + strings.Repeat(" ", pad) + helpText + " ")
+	contentStr := " " + title + strings.Repeat(" ", contentPad) + helpText + " "
+
+	// Center content within full width
+	leftMargin := (fullWidth - contentWidth) / 2
+	rightMargin := fullWidth - leftMargin - contentWidth
+	mid := HeaderStyle.Render(
+		strings.Repeat(" ", leftMargin) +
+			contentStr +
+			strings.Repeat(" ", rightMargin),
+	)
 
 	return strings.Join([]string{above, mid, below}, "\n")
 }

@@ -8,14 +8,14 @@ import (
 )
 
 func TestHeader_HasThreeRows(t *testing.T) {
-	lines := strings.Split(Header(80, "Title"), "\n")
+	lines := strings.Split(Header(80, ConstrainedWidth(80), "Title"), "\n")
 	if len(lines) != HeaderHeight {
 		t.Errorf("want %d lines, got %d", HeaderHeight, len(lines))
 	}
 }
 
 func TestHeader_ContainsTitleAndHelp(t *testing.T) {
-	h := Header(80, "Welcome!")
+	h := Header(80, ConstrainedWidth(80), "Welcome!")
 	if !strings.Contains(h, "Welcome!") {
 		t.Errorf("header missing title: %q", h)
 	}
@@ -26,7 +26,7 @@ func TestHeader_ContainsTitleAndHelp(t *testing.T) {
 
 func TestHeader_RowsAreWidthCellsWide(t *testing.T) {
 	const width = 80
-	for _, line := range strings.Split(Header(width, "Добро пожаловать!"), "\n") {
+	for _, line := range strings.Split(Header(width, ConstrainedWidth(width), "Добро пожаловать!"), "\n") {
 		if got := lipgloss.Width(line); got != width {
 			t.Errorf("row width %d != %d for %q", got, width, line)
 		}
@@ -34,7 +34,7 @@ func TestHeader_RowsAreWidthCellsWide(t *testing.T) {
 }
 
 func TestHeader_NarrowWidthDoesNotPanic(t *testing.T) {
-	h := Header(5, "Title")
+	h := Header(5, ConstrainedWidth(5), "Title")
 	if h == "" {
 		t.Errorf("expected non-empty header for narrow width")
 	}
@@ -77,6 +77,24 @@ func TestRender_HeaderAppearsBeforeBody(t *testing.T) {
 	}
 	if hi > bi {
 		t.Errorf("title should appear before body content")
+	}
+}
+
+func TestHeader_WideScreenTitleCentered(t *testing.T) {
+	const fullWidth = 150
+	contentWidth := ConstrainedWidth(fullWidth)
+	h := Header(fullWidth, contentWidth, "Title")
+	lines := strings.Split(h, "\n")
+	// All header lines should be full width
+	for _, line := range lines {
+		if got := lipgloss.Width(line); got != fullWidth {
+			t.Errorf("header line width %d != %d (full width)", got, fullWidth)
+		}
+	}
+	// Title should be present in the header
+	headerStr := strings.Join(lines, "\n")
+	if !strings.Contains(headerStr, "Title") {
+		t.Errorf("title not found in header")
 	}
 }
 

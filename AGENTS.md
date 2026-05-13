@@ -96,11 +96,13 @@ add it to `internal/ui/`.
 - **Screen sequence:** Language → Source → Storage (disk selection & capability) →
   Confirm (destructive-action confirmation) → Keyboard → ... See `main.go` for
   handler routing and message types.
-- **Subiquity API: JSON encoding in query parameters.** Parameters like `source_id`
-  and `tty` must be JSON-encoded (with quotes) before URL encoding in the query
-  string. E.g., `tty=/dev/tty1` becomes `?tty=%22%2Fdev%2Ftty1%22` (URL-encoded
-  `"/dev/tty1"`). This is pervasive; always check upstream Python handlers or test
-  with actual server before assuming plain strings work.
+- **Subiquity API: body vs. query parameters.** Check `apidef.py` in upstream
+  subiquity: parameters with `Payload` type in the handler signature go in the
+  request body (JSON-encoded); everything else goes in query parameters.
+  Query parameters must be JSON-encoded before URL encoding. E.g., `tty=/dev/tty1`
+  becomes `?tty=%22%2Fdev%2Ftty1%22` (URL-encoded `"/dev/tty1"`). Arrays in query
+  params: JSON-encode the whole array (e.g., `?endpoint_names=%5B%22network%22%5D`
+  for `["network"]`). This is pervasive; consult apidef.py rather than guessing.
 
 ## Language screen (`internal/screens/language.go`)
 

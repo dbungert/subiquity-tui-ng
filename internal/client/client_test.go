@@ -637,9 +637,9 @@ func TestPostMarkConfigured_SendsCorrectRequest(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "/meta/mark_configured", r.URL.Path)
 		assert.Equal(t, "POST", r.Method)
-		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
+		endpointNamesParam := r.URL.Query().Get("endpoint_names")
 		var endpoints []string
-		err := json.NewDecoder(r.Body).Decode(&endpoints)
+		err := json.Unmarshal([]byte(endpointNamesParam), &endpoints)
 		require.NoError(t, err)
 		assert.Equal(t, []string{"network", "snaplist", "ubuntu_pro", "drivers", "ssh", "proxy", "keyboard", "mirror"}, endpoints)
 		w.WriteHeader(http.StatusOK)

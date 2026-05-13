@@ -433,16 +433,15 @@ func (c *Client) PostMetaConfirm(ctx context.Context, tty string) error {
 }
 
 func (c *Client) PostMarkConfigured(ctx context.Context, endpoints []string) error {
-	body, err := json.Marshal(endpoints)
-	if err != nil {
-		return err
-	}
+	query := url.Values{}
+	endpointsJSON, _ := json.Marshal(endpoints)
+	query.Set("endpoint_names", string(endpointsJSON))
+	reqURL := "http://localhost/meta/mark_configured?" + query.Encode()
 
-	req, err := http.NewRequestWithContext(ctx, "POST", "http://localhost/meta/mark_configured", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, "POST", reqURL, http.NoBody)
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.http.Do(req)
 	if err != nil {

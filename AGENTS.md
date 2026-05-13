@@ -94,8 +94,18 @@ add it to `internal/ui/`.
   `.subiquity/socket` in test mode). Async commands (`tea.Cmd`) fetch data and
   post selections back.
 - **Screen sequence:** Language → Source → Storage (disk selection & capability) →
-  Identity (user & hostname in two screens) → Confirm (destructive-action confirmation) → InstallProgress.
+  UserIdentity (realname, username, password + confirmation) → HostIdentity (hostname) → 
+  Confirm (destructive-action confirmation) → InstallProgress → RebootConfirm → Shutdown.
   See `main.go` for handler routing and message types.
+- **Long-polling for install state.** `MetaStatusWait(ctx, currentState)` blocks until the 
+  server state changes, with a 5-minute timeout for long install phases. Returns the new 
+  `ApplicationStatus` struct each time. InstallProgress polls continuously via repeated 
+  `fetchInstallStatus` commands until reaching a terminal state (DONE, ERROR, EXITED).
+- **Log streaming via journalctl.** `ApplicationStatus.LogSyslogID` identifies the subiquity 
+  log stream in the system journal. On the first `installStatusMsg` with a non-empty 
+  `LogSyslogID`, start a `journalctl --follow --identifier=<id> --output=cat` subprocess. 
+  Chain reads through `journalLineMsg` to feed lines to `InstallProgress`. Stop reading 
+  automatically when transitioning to `RebootScreen` (type assertion guards the transition).
 - **Subiquity API: body vs. query parameters.** Check `apidef.py` in upstream
   subiquity: parameters with `Payload` type in the handler signature go in the
   request body (JSON-encoded); everything else goes in query parameters.
@@ -130,10 +140,14 @@ add it to `internal/ui/`.
 Upstream subiquity collects user identity on a single screen. We split it into two:
 
 - **UserIdentityScreen** (`internal/screens/user_identity.go`):
-  - Three fields: realname ("Your name:"), username, password (masked with `●`)
-  - Down/Up arrows navigate between fields; Enter on last field submits
-  - Emits `UserIdentityDoneMsg` with realname, username, password
+  - Four fields: realname ("Your name:"), username, password (masked with `●`), 
+    password confirmation (masked with `●`)
+  - Up/Down arrows navigate between fields; Tab/Shift+Tab also navigate (wrapping)
+  - Enter on last field validates and submits
+  - Password confirmation must match the password field; shows "Passwords do not match." 
+    error if they differ
   - Validation: rejects empty fields inline
+  - Emits `UserIdentityDoneMsg` with realname, username, password
 
 - **HostIdentityScreen** (`internal/screens/host_identity.go`):
   - Single field: hostname ("Server name:")
@@ -148,16 +162,41 @@ Upstream subiquity collects user identity on a single screen. We split it into t
 - **API:** `POST /identity` uses `Payload[IdentityData]` → JSON body (not query params).
   Field names: `realname` (not `fullname`), `username`, `crypted_password`, `hostname`.
 
+## Install progress screen (`internal/screens/install_progress.go`)
+
+- **State polling:** Receives `InstallProgressStateMsg` updates from main.go's `fetchInstallStatus` 
+  command, which long-polls `/meta/status?wait=<state>` with 5-minute timeout.
+- **Log line buffering:** Receives `InstallLogLineMsg` messages containing lines from 
+  `journalctl --follow --identifier=<log_syslog_id>`. Buffers the last 10 lines in a 
+  `logLines []string` slice, automatically evicting older lines as new ones arrive.
+- **View rendering:** Shows "Installing system...", current state (e.g., "State: RUNNING"), 
+  and then buffered log lines with truncation at `contentWidth - 2`. Lines longer than 
+  the display width are truncated with ellipsis (`…`).
+
+## Reboot confirmation screen (`internal/screens/reboot_confirm.go`)
+
+- **Entry point:** On terminal install state (DONE, ERROR, EXITED), transitions from 
+  InstallProgress to RebootScreen.
+- **Cursor navigation:** Up/Down arrows move between "Reboot now" (default, cursor=0) and 
+  "Stay here" (cursor=1). Wraps at boundaries.
+- **Submission:** Enter emits `RebootConfirmMsg` if cursor==0 (reboot), else 
+  `RebootCancelMsg` (stay). Esc always emits `RebootCancelMsg`.
+- **Main.go wiring:** `RebootConfirmMsg` fires `postShutdown(...)` (POST `/shutdown?mode="REBOOT"&immediate=false`), 
+  which emits `shutdownOKMsg` (fires `tea.Quit`) or `shutdownErrMsg` (logs and stays). 
+  `RebootCancelMsg` fires no command (user remains on reboot screen).
+
 ## Future scope worth knowing about
 
 - **Autoinstall mode** in upstream bypasses the TUI entirely. Not in
   scope yet, but the `Screen` interface should not assume interactivity
   is mandatory forever.
-- **Keyboard / Network / Proxy / Identity screens** come next in the upstream
+- **Keyboard / Network / Proxy configuration screens** come next in the upstream
   sequence. Consult `subiquity.client.client` in the upstream tree for
   ordering and interactions.
 - **Error recovery.** Current screens transition linearly; no back-button or
   error-state handling. Real subiquity allows rework of previous screens.
+- **Refresh screen after reboot.** Currently the installer quits on shutdown 
+  success. Real subiquity may show a post-installation summary.
 
 ## Where the upstream lives
 

@@ -17,20 +17,34 @@ The upstream subiquity is written in Python using the urwid TUI framework. This 
 ## Current Status
 
 **Implemented screens:**
-- Language chooser (live type-ahead filter, 33 languages, centered on wide displays)
+- Language selection (live type-ahead filter, 33 languages)
+- Source/mirror selection
+- Storage/disk selection with guided partitioning
+- User identity (username, realname, password with confirmation)
+- Hostname selection
+- Installation confirmation (destructive action warning)
+- Install progress (long-polling with real-time journalctl log streaming)
+- Reboot confirmation
+
+**Server integration:**
+- Unix socket HTTP client (`internal/client/client.go`)
+- Full API integration: locale, source, storage, identity, install monitoring, reboot
+- Password hashing (SHA-512 crypt(3) format)
+- Long-polling for install state transitions with 5-minute timeout
+- Real-time log streaming from `journalctl` during installation
 
 **Architecture:**
 - 80x24 terminal minimum with proper behavior on larger displays
-- Screen-based navigation model (extensible for future screens)
-- Ubuntu orange header with help button
+- Screen-based navigation model with state-driven transitions
+- Ubuntu orange header with title
 - Keyboard-only interaction (no mouse)
+- All I/O asynchronous (Bubble Tea commands, no blocking)
 
 **Not implemented:**
-- Server integration (no curtin or HTTP client)
 - Keyboard layout configuration
 - Network configuration
-- Storage configuration
-- Any actual installation
+- Proxy configuration
+- Autoinstall mode
 
 ## Building & Running
 

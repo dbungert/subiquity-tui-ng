@@ -253,6 +253,55 @@ func TestGetSource_ErrorOnNonOK(t *testing.T) {
 	assert.Contains(t, err.Error(), "server error")
 }
 
+func TestPostSource_SendsCorrectRequest(t *testing.T) {
+	listener, err := net.Listen("unix", "")
+	require.NoError(t, err)
+	defer func() {
+		_ = listener.Close()
+	}()
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/source", r.URL.Path)
+		assert.Equal(t, "POST", r.Method)
+		assert.Equal(t, "ubuntu-server", r.URL.Query().Get("source_id"))
+		assert.Equal(t, "false", r.URL.Query().Get("search_drivers"))
+		w.WriteHeader(http.StatusOK)
+	})
+
+	go func() {
+		_ = http.Serve(listener, handler)
+	}()
+
+	c := New(listener.Addr().String())
+	ctx := context.Background()
+	err = c.PostSource(ctx, "ubuntu-server", false)
+	assert.NoError(t, err)
+}
+
+func TestPostSource_ErrorOnNonOK(t *testing.T) {
+	listener, err := net.Listen("unix", "")
+	require.NoError(t, err)
+	defer func() {
+		_ = listener.Close()
+	}()
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		_, _ = w.Write([]byte("invalid source"))
+	})
+
+	go func() {
+		_ = http.Serve(listener, handler)
+	}()
+
+	c := New(listener.Addr().String())
+	ctx := context.Background()
+	err = c.PostSource(ctx, "invalid", false)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "422")
+	assert.Contains(t, err.Error(), "invalid source")
+}
+
 func boolPtr(v bool) *bool {
 	return &v
 }

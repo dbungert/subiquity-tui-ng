@@ -26,6 +26,7 @@ type Model struct {
 	socket        string
 	client        *client.Client
 	logger        *log.Logger
+	sourceData    *client.SourceSelectionAndSetting
 }
 
 func (m Model) Init() tea.Cmd {
@@ -50,13 +51,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case screens.LanguageSelectedMsg:
 		return m, postLocale(m.client, m.logger, msg.Code)
 	case localePostOKMsg:
-		m.current = screens.NewKeyboard()
+		items := toSourceItems(m.sourceData)
+		currentID := sourceCurrentID(m.sourceData)
+		m.current = screens.NewSource(items, currentID)
 		return m, m.current.Init()
 	case localePostErrMsg:
 		return m, nil
 	case sourceMsg:
+		m.sourceData = msg.data
 		return m, nil
 	case sourceErrMsg:
+		return m, nil
+	case screens.SourceSelectedMsg:
+		return m, postSource(m.client, m.logger, msg.ID)
+	case sourcePostOKMsg:
+		m.current = screens.NewKeyboard()
+		return m, m.current.Init()
+	case sourcePostErrMsg:
 		return m, nil
 	}
 	var cmd tea.Cmd
@@ -112,6 +123,25 @@ func fetchSource(c *client.Client, logger *log.Logger) tea.Cmd {
 	}
 }
 
+type sourcePostOKMsg struct{}
+
+type sourcePostErrMsg struct {
+	err error
+}
+
+func postSource(c *client.Client, logger *log.Logger, id string) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := c.PostSource(ctx, id, false); err != nil {
+			logger.Printf("POST /source error: %v", err)
+			return sourcePostErrMsg{err: err}
+		}
+		logger.Printf("POST /source: ok (id=%s)", id)
+		return sourcePostOKMsg{}
+	}
+}
+
 func postLocale(c *client.Client, logger *log.Logger, code string) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -135,6 +165,29 @@ func fetchMetaStatus(c *client.Client, logger *log.Logger) tea.Cmd {
 		}
 		return metaStatusMsg{status: status}
 	}
+}
+
+func toSourceItems(d *client.SourceSelectionAndSetting) []screens.SourceItem {
+	if d == nil || len(d.Sources) == 0 {
+		return nil
+	}
+	items := make([]screens.SourceItem, len(d.Sources))
+	for i, s := range d.Sources {
+		items[i] = screens.SourceItem{
+			ID:          s.ID,
+			Name:        s.Name,
+			Description: s.Description,
+			Size:        s.Size,
+		}
+	}
+	return items
+}
+
+func sourceCurrentID(d *client.SourceSelectionAndSetting) string {
+	if d == nil {
+		return ""
+	}
+	return d.CurrentID
 }
 
 func main() {

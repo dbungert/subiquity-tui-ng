@@ -139,20 +139,35 @@ func TestModel_LanguageSelectedMsgFiresPostCmd(t *testing.T) {
 	assert.NotNil(t, cmd)
 }
 
-func TestModel_LocalePostOKTransitionsToKeyboard(t *testing.T) {
+func TestModel_LocalePostOKTransitionsToSource(t *testing.T) {
 	var buf bytes.Buffer
 	logger := log.New(&buf, "", 0)
+	sourceData := &client.SourceSelectionAndSetting{
+		Sources: []client.SourceSelection{
+			{
+				Name:        "Ubuntu Server",
+				Description: "Standard",
+				ID:          "ubuntu-server",
+				Size:        2500000000,
+				Variant:     "server",
+				Default:     true,
+			},
+		},
+		CurrentID:     "ubuntu-server",
+		SearchDrivers: false,
+	}
 	m := Model{
-		current: screens.NewLanguage(),
-		client:  client.New(".subiquity/socket"),
-		logger:  logger,
+		current:    screens.NewLanguage(),
+		client:     client.New(".subiquity/socket"),
+		logger:     logger,
+		sourceData: sourceData,
 	}
 
 	next, cmd := m.Update(localePostOKMsg{})
 	m = next.(Model)
 	assert.Nil(t, cmd)
-	_, ok := m.current.(*screens.Keyboard)
-	assert.True(t, ok, "expected current screen to be Keyboard")
+	_, ok := m.current.(*screens.SourceScreen)
+	assert.True(t, ok, "expected current screen to be SourceScreen")
 }
 
 func TestModel_LocalePostErrStaysOnScreen(t *testing.T) {
@@ -216,4 +231,62 @@ func TestModel_SourceErrMsgStaysOnScreen(t *testing.T) {
 	m = next.(Model)
 	assert.Nil(t, cmd)
 	assert.Equal(t, startScreen, m.current)
+}
+
+func TestModel_SourceMsgStoresData(t *testing.T) {
+	var buf bytes.Buffer
+	logger := log.New(&buf, "", 0)
+	m := Model{
+		current: screens.NewLanguage(),
+		client:  client.New(".subiquity/socket"),
+		logger:  logger,
+	}
+
+	sourceData := &client.SourceSelectionAndSetting{
+		Sources: []client.SourceSelection{
+			{
+				Name:        "Ubuntu Server",
+				Description: "Standard",
+				ID:          "ubuntu-server",
+				Size:        2500000000,
+				Variant:     "server",
+				Default:     true,
+			},
+		},
+		CurrentID:     "ubuntu-server",
+		SearchDrivers: false,
+	}
+
+	next, _ := m.Update(sourceMsg{data: sourceData})
+	m = next.(Model)
+	assert.Equal(t, sourceData, m.sourceData)
+}
+
+func TestModel_SourceSelectedMsgFiresPostCmd(t *testing.T) {
+	var buf bytes.Buffer
+	logger := log.New(&buf, "", 0)
+	m := Model{
+		current: screens.NewSource([]screens.SourceItem{{ID: "server", Name: "Server", Description: "Full", Size: 2500000000}}, ""),
+		client:  client.New(".subiquity/socket"),
+		logger:  logger,
+	}
+
+	_, cmd := m.Update(screens.SourceSelectedMsg{ID: "server"})
+	assert.NotNil(t, cmd)
+}
+
+func TestModel_SourcePostOKTransitionsToKeyboard(t *testing.T) {
+	var buf bytes.Buffer
+	logger := log.New(&buf, "", 0)
+	m := Model{
+		current: screens.NewLanguage(),
+		client:  client.New(".subiquity/socket"),
+		logger:  logger,
+	}
+
+	next, cmd := m.Update(sourcePostOKMsg{})
+	m = next.(Model)
+	assert.Nil(t, cmd)
+	_, ok := m.current.(*screens.Keyboard)
+	assert.True(t, ok, "expected current screen to be Keyboard")
 }

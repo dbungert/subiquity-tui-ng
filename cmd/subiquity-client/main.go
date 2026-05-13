@@ -27,6 +27,7 @@ type Model struct {
 	client        *client.Client
 	logger        *log.Logger
 	sourceData    *client.SourceSelectionAndSetting
+	storageItems  []screens.StorageItem
 }
 
 func (m Model) Init() tea.Cmd {
@@ -70,13 +71,30 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case sourcePostErrMsg:
 		return m, nil
 	case storageGuidedMsg:
-		m.current = screens.NewStorage(toStorageItems(msg.targets))
+		items := toStorageItems(msg.targets)
+		m.storageItems = items
+		m.current = screens.NewStorage(items)
 		return m, nil
 	case storageGuidedErrMsg:
 		m.logger.Printf("GET /storage/v2/guided error: %v", msg.err)
 		return m, nil
 	case screens.StorageCapabilitySelectedMsg:
-		m.logger.Printf("storage selected: disk=%s capability=%s", msg.DiskID, msg.Capability)
+		if needsPassphrase(msg.Capability) {
+			m.current = screens.NewPassphrase(msg.DiskID, msg.Capability)
+			return m, nil
+		}
+		return m, postStorageGuided(m.client, m.logger, msg.DiskID, msg.Capability, nil)
+	case screens.PassphraseEnteredMsg:
+		return m, postStorageGuided(m.client, m.logger, msg.DiskID, msg.Capability, &msg.Passphrase)
+	case screens.PassphraseCancelMsg:
+		m.current = screens.NewStorage(m.storageItems)
+		return m, nil
+	case storagePostOKMsg:
+		m.logger.Printf("storage configured successfully")
+		m.current = screens.NewKeyboard()
+		return m, m.current.Init()
+	case storagePostErrMsg:
+		m.logger.Printf("POST /storage/v2/guided error: %v", msg.err)
 		return m, nil
 	}
 	var cmd tea.Cmd
@@ -146,6 +164,12 @@ type storageGuidedErrMsg struct {
 	err error
 }
 
+type storagePostOKMsg struct{}
+
+type storagePostErrMsg struct {
+	err error
+}
+
 func postSource(c *client.Client, logger *log.Logger, id string) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -175,6 +199,31 @@ func fetchStorageGuidedV2(c *client.Client, logger *log.Logger) tea.Cmd {
 		}
 		logger.Printf("GET /storage/v2/guided: ok (%d bytes, %d targets)", len(raw), len(targets))
 		return storageGuidedMsg{targets: targets}
+	}
+}
+
+func needsPassphrase(capability string) bool {
+	return capability == "LVM_LUKS" || capability == "ZFS_LUKS_KEYSTORE"
+}
+
+func postStorageGuided(c *client.Client, logger *log.Logger, diskID, capability string, password *string) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		choice := client.GuidedChoiceV2{
+			Target: client.GuidedTargetForPost{
+				Type:   "GuidedStorageTargetReformat",
+				DiskID: diskID,
+			},
+			Capability: client.GuidedCapability(capability),
+			Password:   password,
+		}
+		if err := c.PostStorageGuidedV2(ctx, choice); err != nil {
+			logger.Printf("POST /storage/v2/guided error: %v", err)
+			return storagePostErrMsg{err: err}
+		}
+		logger.Printf("POST /storage/v2/guided: ok (disk=%s capability=%s)", diskID, capability)
+		return storagePostOKMsg{}
 	}
 }
 

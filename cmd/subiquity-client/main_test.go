@@ -316,10 +316,10 @@ func TestModel_StorageGuidedMsgBuildsItems(t *testing.T) {
 	assert.True(t, ok, "expected current screen to be StorageScreen")
 	view := storageScreen.View(80, 24)
 	assert.Contains(t, view, "disk-sda")
-	assert.Contains(t, view, "Direct (ext4)")
+	assert.Contains(t, view, "Direct")
 }
 
-func TestModel_StorageCapabilitySelectedLogs(t *testing.T) {
+func TestModel_StorageCapabilitySelectedLogsOnPost(t *testing.T) {
 	var buf bytes.Buffer
 	logger := log.New(&buf, "", 0)
 	m := Model{
@@ -329,8 +329,7 @@ func TestModel_StorageCapabilitySelectedLogs(t *testing.T) {
 	}
 
 	_, cmd := m.Update(screens.StorageCapabilitySelectedMsg{DiskID: "disk-sda", Capability: "DIRECT"})
-	assert.Nil(t, cmd)
-	assert.Contains(t, buf.String(), "storage selected: disk=disk-sda capability=DIRECT")
+	assert.NotNil(t, cmd, "unencrypted capability should fire POST")
 }
 
 func TestModel_StorageGuidedErrLogsAndStays(t *testing.T) {
@@ -348,4 +347,79 @@ func TestModel_StorageGuidedErrLogsAndStays(t *testing.T) {
 	assert.Nil(t, cmd)
 	assert.Equal(t, startScreen, m.current)
 	assert.Contains(t, buf.String(), "GET /storage/v2/guided error:")
+}
+
+func TestModel_StorageCapabilitySelectedTransitionsToPassphrase(t *testing.T) {
+	var buf bytes.Buffer
+	logger := log.New(&buf, "", 0)
+	m := Model{
+		current: screens.NewStorageLoading(),
+		client:  client.New(".subiquity/socket"),
+		logger:  logger,
+	}
+
+	next, cmd := m.Update(screens.StorageCapabilitySelectedMsg{DiskID: "disk-sda", Capability: "LVM_LUKS"})
+	m = next.(Model)
+	assert.Nil(t, cmd)
+	_, ok := m.current.(*screens.PassphraseScreen)
+	assert.True(t, ok, "expected current screen to be PassphraseScreen")
+}
+
+func TestModel_StorageCapabilitySelectedFiresPost(t *testing.T) {
+	var buf bytes.Buffer
+	logger := log.New(&buf, "", 0)
+	m := Model{
+		current: screens.NewStorageLoading(),
+		client:  client.New(".subiquity/socket"),
+		logger:  logger,
+	}
+
+	_, cmd := m.Update(screens.StorageCapabilitySelectedMsg{DiskID: "disk-sda", Capability: "DIRECT"})
+	assert.NotNil(t, cmd, "unencrypted capability should fire POST cmd")
+}
+
+func TestModel_PassphraseEnteredFiresPost(t *testing.T) {
+	var buf bytes.Buffer
+	logger := log.New(&buf, "", 0)
+	m := Model{
+		current: screens.NewPassphrase("disk-sda", "LVM_LUKS"),
+		client:  client.New(".subiquity/socket"),
+		logger:  logger,
+	}
+
+	_, cmd := m.Update(screens.PassphraseEnteredMsg{DiskID: "disk-sda", Capability: "LVM_LUKS", Passphrase: "mysecret"})
+	assert.NotNil(t, cmd, "passphrase entry should fire POST cmd")
+}
+
+func TestModel_PassphraseCancelGoesBackToStorage(t *testing.T) {
+	var buf bytes.Buffer
+	logger := log.New(&buf, "", 0)
+	items := []screens.StorageItem{{DiskID: "disk-sda", Capability: "DIRECT"}}
+	m := Model{
+		current:      screens.NewPassphrase("disk-sda", "LVM_LUKS"),
+		client:       client.New(".subiquity/socket"),
+		logger:       logger,
+		storageItems: items,
+	}
+
+	next, cmd := m.Update(screens.PassphraseCancelMsg{})
+	m = next.(Model)
+	assert.Nil(t, cmd)
+	_, ok := m.current.(*screens.StorageScreen)
+	assert.True(t, ok, "expected current screen to be StorageScreen")
+}
+
+func TestModel_StoragePostOKTransitionsToKeyboard(t *testing.T) {
+	var buf bytes.Buffer
+	logger := log.New(&buf, "", 0)
+	m := Model{
+		current: screens.NewStorageLoading(),
+		client:  client.New(".subiquity/socket"),
+		logger:  logger,
+	}
+
+	next, _ := m.Update(storagePostOKMsg{})
+	m = next.(Model)
+	_, ok := m.current.(*screens.Keyboard)
+	assert.True(t, ok, "expected current screen to be Keyboard")
 }

@@ -264,6 +264,44 @@ func ParseStorageGuidedTargets(raw json.RawMessage) ([]StorageReformatTarget, er
 	return results, nil
 }
 
+type GuidedTargetForPost struct {
+	Type   string `json:"$type"`
+	DiskID string `json:"disk_id"`
+}
+
+type GuidedChoiceV2 struct {
+	Target     GuidedTargetForPost `json:"target"`
+	Capability GuidedCapability    `json:"capability"`
+	Password   *string             `json:"password,omitempty"`
+}
+
+func (c *Client) PostStorageGuidedV2(ctx context.Context, choice GuidedChoiceV2) error {
+	body, err := json.Marshal(choice)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", "http://localhost/storage/v2/guided", bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("POST /storage/v2/guided returned %d: %s", resp.StatusCode, string(body))
+	}
+	return nil
+}
+
 func isConnRefused(errStr string) bool {
 	return isConnRefusedErrno(errStr)
 }

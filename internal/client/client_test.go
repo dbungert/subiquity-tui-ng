@@ -414,6 +414,112 @@ func TestParseStorageGuidedTargets_FiltersOutNonReformat(t *testing.T) {
 	assert.Equal(t, "disk-3", targets[1].DiskID)
 }
 
+func TestPostStorageGuidedV2_SendsCorrectRequest(t *testing.T) {
+	listener, err := net.Listen("unix", "")
+	require.NoError(t, err)
+	defer func() {
+		_ = listener.Close()
+	}()
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/storage/v2/guided", r.URL.Path)
+		assert.Equal(t, "POST", r.Method)
+		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
+		var choice GuidedChoiceV2
+		err := json.NewDecoder(r.Body).Decode(&choice)
+		require.NoError(t, err)
+		assert.Equal(t, "GuidedStorageTargetReformat", choice.Target.Type)
+		assert.Equal(t, "disk-sda", choice.Target.DiskID)
+		assert.Equal(t, CapabilityDirect, choice.Capability)
+		assert.Nil(t, choice.Password)
+		w.WriteHeader(http.StatusOK)
+	})
+
+	go func() {
+		_ = http.Serve(listener, handler)
+	}()
+
+	c := New(listener.Addr().String())
+	ctx := context.Background()
+	choice := GuidedChoiceV2{
+		Target: GuidedTargetForPost{
+			Type:   "GuidedStorageTargetReformat",
+			DiskID: "disk-sda",
+		},
+		Capability: CapabilityDirect,
+		Password:   nil,
+	}
+	err = c.PostStorageGuidedV2(ctx, choice)
+	assert.NoError(t, err)
+}
+
+func TestPostStorageGuidedV2_SendsPasswordForEncrypted(t *testing.T) {
+	listener, err := net.Listen("unix", "")
+	require.NoError(t, err)
+	defer func() {
+		_ = listener.Close()
+	}()
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var choice GuidedChoiceV2
+		err := json.NewDecoder(r.Body).Decode(&choice)
+		require.NoError(t, err)
+		assert.Equal(t, CapabilityLVMLUKS, choice.Capability)
+		assert.NotNil(t, choice.Password)
+		assert.Equal(t, "mysecret", *choice.Password)
+		w.WriteHeader(http.StatusOK)
+	})
+
+	go func() {
+		_ = http.Serve(listener, handler)
+	}()
+
+	c := New(listener.Addr().String())
+	ctx := context.Background()
+	password := "mysecret"
+	choice := GuidedChoiceV2{
+		Target: GuidedTargetForPost{
+			Type:   "GuidedStorageTargetReformat",
+			DiskID: "disk-sda",
+		},
+		Capability: CapabilityLVMLUKS,
+		Password:   &password,
+	}
+	err = c.PostStorageGuidedV2(ctx, choice)
+	assert.NoError(t, err)
+}
+
+func TestPostStorageGuidedV2_ErrorOnNonOK(t *testing.T) {
+	listener, err := net.Listen("unix", "")
+	require.NoError(t, err)
+	defer func() {
+		_ = listener.Close()
+	}()
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte("storage configuration failed"))
+	})
+
+	go func() {
+		_ = http.Serve(listener, handler)
+	}()
+
+	c := New(listener.Addr().String())
+	ctx := context.Background()
+	choice := GuidedChoiceV2{
+		Target: GuidedTargetForPost{
+			Type:   "GuidedStorageTargetReformat",
+			DiskID: "disk-sda",
+		},
+		Capability: CapabilityDirect,
+	}
+	err = c.PostStorageGuidedV2(ctx, choice)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "500")
+	assert.Contains(t, err.Error(), "storage configuration failed")
+}
+
 func boolPtr(v bool) *bool {
 	return &v
 }

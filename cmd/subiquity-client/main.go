@@ -32,6 +32,7 @@ type Model struct {
 	disksByID      map[string]client.StorageDisk
 	pendingDiskLabel  string
 	pendingCapability string
+	confirmingTTY     string
 }
 
 func (m Model) Init() tea.Cmd {
@@ -49,6 +50,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case metaStatusMsg:
 		m.logger.Printf("meta/status: state=%s", msg.status.State)
+		if msg.status.ConfirmingTTY != "" {
+			m.confirmingTTY = msg.status.ConfirmingTTY
+		}
 		return m, nil
 	case metaStatusErrMsg:
 		m.logger.Printf("meta/status error: %v", msg.err)
@@ -141,7 +145,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.logger.Printf("POST /storage/v2/guided error: %v", msg.err)
 		return m, nil
 	case screens.ConfirmAcceptedMsg:
-		return m, postMetaConfirm(m.client, m.logger)
+		return m, postMetaConfirm(m.client, m.logger, m.confirmingTTY)
 	case metaConfirmOKMsg:
 		m.logger.Printf("meta/confirm: ok")
 		m.current = screens.NewKeyboard()
@@ -315,11 +319,11 @@ func postStorageGuided(c *client.Client, logger *log.Logger, diskID, capability 
 	}
 }
 
-func postMetaConfirm(c *client.Client, logger *log.Logger) tea.Cmd {
+func postMetaConfirm(c *client.Client, logger *log.Logger, tty string) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		if err := c.PostMetaConfirm(ctx); err != nil {
+		if err := c.PostMetaConfirm(ctx, tty); err != nil {
 			logger.Printf("POST /meta/confirm error: %v", err)
 			return metaConfirmErrMsg{err: err}
 		}

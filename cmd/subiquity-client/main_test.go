@@ -463,9 +463,10 @@ func TestModel_ConfirmAcceptedFiresPostConfirm(t *testing.T) {
 	var buf bytes.Buffer
 	logger := log.New(&buf, "", 0)
 	m := Model{
-		current: screens.NewConfirm("/dev/sda", "DIRECT"),
-		client:  client.New(".subiquity/socket"),
-		logger:  logger,
+		current:       screens.NewConfirm("/dev/sda", "DIRECT"),
+		client:        client.New(".subiquity/socket"),
+		logger:        logger,
+		confirmingTTY: "/dev/tty1",
 	}
 
 	_, cmd := m.Update(screens.ConfirmAcceptedMsg{})

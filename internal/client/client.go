@@ -407,8 +407,13 @@ func (c *Client) PostStorageGuidedV2(ctx context.Context, choice GuidedChoiceV2)
 	return nil
 }
 
-func (c *Client) PostMetaConfirm(ctx context.Context) error {
-	req, err := http.NewRequestWithContext(ctx, "POST", "http://localhost/meta/confirm", nil)
+func (c *Client) PostMetaConfirm(ctx context.Context, tty string) error {
+	body, err := json.Marshal(tty)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", "http://localhost/meta/confirm", bytes.NewReader(body))
 	if err != nil {
 		return err
 	}

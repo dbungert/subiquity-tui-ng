@@ -590,6 +590,10 @@ func TestPostMetaConfirm_SendsCorrectRequest(t *testing.T) {
 		assert.Equal(t, "/meta/confirm", r.URL.Path)
 		assert.Equal(t, "POST", r.Method)
 		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
+		var tty string
+		err := json.NewDecoder(r.Body).Decode(&tty)
+		require.NoError(t, err)
+		assert.Equal(t, "/dev/tty1", tty)
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -599,7 +603,7 @@ func TestPostMetaConfirm_SendsCorrectRequest(t *testing.T) {
 
 	c := New(listener.Addr().String())
 	ctx := context.Background()
-	err = c.PostMetaConfirm(ctx)
+	err = c.PostMetaConfirm(ctx, "/dev/tty1")
 	assert.NoError(t, err)
 }
 
@@ -621,7 +625,7 @@ func TestPostMetaConfirm_ErrorOnNonOK(t *testing.T) {
 
 	c := New(listener.Addr().String())
 	ctx := context.Background()
-	err = c.PostMetaConfirm(ctx)
+	err = c.PostMetaConfirm(ctx, "/dev/tty1")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "500")
 	assert.Contains(t, err.Error(), "confirmation failed")

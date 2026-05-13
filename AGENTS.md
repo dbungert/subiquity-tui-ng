@@ -72,6 +72,10 @@ add it to `internal/ui/`.
   `internal/ui/style.go`; `HeaderHeight = 3` is still the row budget.
 - **Measure with `lipgloss.Width`, not `len`.** Titles contain
   multibyte runes (`Добро пожаловать!`); byte length is wrong.
+- **Lint is gated by pre-commit.** `make` (default target) runs
+  `lint + build`; `make init` installs the git pre-commit hook once
+  per clone. Config in `.golangci.yml` and `.pre-commit-config.yaml`.
+  Bumping the `golangci-lint` rev: `pre-commit autoupdate`.
 
 ## Future scope worth knowing about
 

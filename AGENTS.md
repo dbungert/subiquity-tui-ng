@@ -73,9 +73,14 @@ add it to `internal/ui/`.
 - **Measure with `lipgloss.Width`, not `len`.** Titles contain
   multibyte runes (`Добро пожаловать!`); byte length is wrong.
 - **Lint is gated by pre-commit.** `make` (default target) runs
-  `lint + build`; `make init` installs the git pre-commit hook once
-  per clone. Config in `.golangci.yml` and `.pre-commit-config.yaml`.
+  `lint → test → build`; `make init` installs the git pre-commit hook
+  once per clone. Config in `.golangci.yml` and `.pre-commit-config.yaml`.
   Bumping the `golangci-lint` rev: `pre-commit autoupdate`.
+- **Tests aim for high coverage, not 100%.** `make test` prints the
+  per-package percentage; `make coverage` writes `coverage.out`
+  (gitignored) and prints the per-function report. Don't chase
+  coverage for trivial getters, `main()`, or interface types — focus
+  on the rendering and capability logic.
 
 ## Future scope worth knowing about
 

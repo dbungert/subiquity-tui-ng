@@ -1,11 +1,18 @@
 .DEFAULT_GOAL := check
 
-.PHONY: check lint build run vet tidy init
+.PHONY: check lint test coverage build run vet tidy init
 
-check: lint build
+check: lint test build
 
 lint:
 	pre-commit run --all-files
+
+test:
+	go test -cover ./...
+
+coverage:
+	go test -coverprofile=coverage.out ./...
+	go tool cover -func=coverage.out
 
 build:
 	go build ./...

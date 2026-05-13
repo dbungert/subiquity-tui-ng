@@ -528,8 +528,8 @@ func TestGetStorageV2_HTTPGet(t *testing.T) {
 	}()
 
 	expected := []StorageDisk{
-		{ID: "disk-sda", Path: "/dev/sda"},
-		{ID: "disk-sdb", Path: "/dev/sdb"},
+		{ID: "disk-sda", Path: "/dev/sda", Size: 500_000_000_000},
+		{ID: "disk-sdb", Path: "/dev/sdb", Size: 1_000_000_000_000},
 	}
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "/storage/v2", r.URL.Path)
@@ -549,8 +549,10 @@ func TestGetStorageV2_HTTPGet(t *testing.T) {
 	assert.Len(t, result, 2)
 	assert.Equal(t, "disk-sda", result[0].ID)
 	assert.Equal(t, "/dev/sda", result[0].Path)
+	assert.Equal(t, int64(500_000_000_000), result[0].Size)
 	assert.Equal(t, "disk-sdb", result[1].ID)
 	assert.Equal(t, "/dev/sdb", result[1].Path)
+	assert.Equal(t, int64(1_000_000_000_000), result[1].Size)
 }
 
 func TestGetStorageV2_ErrorOnNonOK(t *testing.T) {

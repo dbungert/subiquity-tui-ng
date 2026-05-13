@@ -15,8 +15,8 @@ func TestDiskSelection_Title(t *testing.T) {
 
 func TestDiskSelection_ViewShowsDiskPaths(t *testing.T) {
 	items := []DiskItem{
-		{DiskID: "disk-sda", Path: "/dev/sda", Allowed: []string{"DIRECT", "LVM"}},
-		{DiskID: "disk-sdb", Path: "/dev/sdb", Allowed: []string{"DIRECT"}},
+		{DiskID: "disk-sda", Path: "/dev/sda", Size: 500_000_000_000},
+		{DiskID: "disk-sdb", Path: "/dev/sdb", Size: 1_000_000_000_000},
 	}
 	d := NewDiskSelection(items)
 	view := d.View(80, 24)
@@ -27,21 +27,19 @@ func TestDiskSelection_ViewShowsDiskPaths(t *testing.T) {
 	assert.NotContains(t, view, "disk-sdb")
 }
 
-func TestDiskSelection_ViewShowsFamilyHint(t *testing.T) {
+func TestDiskSelection_ViewShowsSize(t *testing.T) {
 	items := []DiskItem{
-		{DiskID: "sda", Allowed: []string{"DIRECT", "LVM", "LVM_LUKS"}},
+		{DiskID: "disk-sda", Path: "/dev/sda", Size: 500_000_000_000},
 	}
 	d := NewDiskSelection(items)
 	view := d.View(80, 24)
-	assert.Contains(t, view, "Supported:")
-	assert.Contains(t, view, "Direct")
-	assert.Contains(t, view, "LVM")
+	assert.Contains(t, view, "500.0 GB")
 }
 
 func TestDiskSelection_NavigateUpDown(t *testing.T) {
 	items := []DiskItem{
-		{DiskID: "sda", Allowed: []string{"DIRECT"}},
-		{DiskID: "sdb", Allowed: []string{"DIRECT"}},
+		{DiskID: "sda", Size: 500_000_000_000},
+		{DiskID: "sdb", Size: 1_000_000_000_000},
 	}
 	d := NewDiskSelection(items)
 	assert.Equal(t, 0, d.cursor)
@@ -57,7 +55,7 @@ func TestDiskSelection_NavigateUpDown(t *testing.T) {
 
 func TestDiskSelection_NavigateClamped(t *testing.T) {
 	items := []DiskItem{
-		{DiskID: "sda", Allowed: []string{"DIRECT"}},
+		{DiskID: "sda", Size: 500_000_000_000},
 	}
 	d := NewDiskSelection(items)
 
@@ -72,7 +70,7 @@ func TestDiskSelection_NavigateClamped(t *testing.T) {
 
 func TestDiskSelection_EnterEmitsDiskSelectedMsg(t *testing.T) {
 	items := []DiskItem{
-		{DiskID: "sda", Allowed: []string{"DIRECT"}},
+		{DiskID: "sda", Size: 500_000_000_000},
 	}
 	d := NewDiskSelection(items)
 	_, cmd := d.Update(tea.KeyMsg{Type: tea.KeyEnter})
@@ -86,7 +84,7 @@ func TestDiskSelection_EnterEmitsDiskSelectedMsg(t *testing.T) {
 
 func TestDiskSelection_ViewFallsBackToDiskID(t *testing.T) {
 	items := []DiskItem{
-		{DiskID: "disk-sda", Path: "", Allowed: []string{"DIRECT"}},
+		{DiskID: "disk-sda", Path: "", Size: 500_000_000_000},
 	}
 	d := NewDiskSelection(items)
 	view := d.View(80, 24)
@@ -95,7 +93,7 @@ func TestDiskSelection_ViewFallsBackToDiskID(t *testing.T) {
 
 func TestDiskSelection_SingleItem(t *testing.T) {
 	items := []DiskItem{
-		{DiskID: "disk-sda", Path: "/dev/sda", Allowed: []string{"DIRECT", "LVM"}},
+		{DiskID: "disk-sda", Path: "/dev/sda", Size: 500_000_000_000},
 	}
 	d := NewDiskSelection(items)
 	view := d.View(80, 24)

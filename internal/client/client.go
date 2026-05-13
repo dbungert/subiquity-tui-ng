@@ -238,6 +238,7 @@ func (c *Client) GetStorageGuidedV2(ctx context.Context) (json.RawMessage, error
 type StorageDisk struct {
 	ID   string `json:"id"`
 	Path string `json:"path"`
+	Size int64  `json:"size"`
 }
 
 func (c *Client) GetStorageV2(ctx context.Context) ([]StorageDisk, error) {

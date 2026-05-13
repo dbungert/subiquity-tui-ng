@@ -29,7 +29,7 @@ type Model struct {
 	sourceData     *client.SourceSelectionAndSetting
 	storageTargets []client.StorageReformatTarget
 	storageItems   []screens.StorageItem
-	diskPaths      map[string]string
+	disksByID      map[string]client.StorageDisk
 }
 
 func (m Model) Init() tea.Cmd {
@@ -73,9 +73,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case sourcePostErrMsg:
 		return m, nil
 	case storageV2Msg:
-		m.diskPaths = make(map[string]string)
+		m.disksByID = make(map[string]client.StorageDisk)
 		for _, d := range msg.disks {
-			m.diskPaths[d.ID] = d.Path
+			m.disksByID[d.ID] = d
 		}
 		return m, nil
 	case storageV2ErrMsg:
@@ -84,18 +84,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case storageGuidedMsg:
 		m.storageTargets = msg.targets
 		if len(msg.targets) == 1 {
-			items := capabilitiesForDisk(msg.targets, msg.targets[0].DiskID)
+			diskID := msg.targets[0].DiskID
+			items := capabilitiesForDisk(msg.targets, diskID)
 			m.storageItems = items
-			m.current = screens.NewStorage(items)
+			label := diskLabelFor(m.disksByID, diskID)
+			m.current = screens.NewStorage(items, label)
 		} else {
-			diskItems := toDiskItems(msg.targets, m.diskPaths)
+			diskItems := toDiskItems(msg.targets, m.disksByID)
 			m.current = screens.NewDiskSelection(diskItems)
 		}
 		return m, nil
 	case screens.DiskSelectedMsg:
 		items := capabilitiesForDisk(m.storageTargets, msg.DiskID)
 		m.storageItems = items
-		m.current = screens.NewStorage(items)
+		label := diskLabelFor(m.disksByID, msg.DiskID)
+		m.current = screens.NewStorage(items, label)
 		return m, nil
 	case storageGuidedErrMsg:
 		m.logger.Printf("GET /storage/v2/guided error: %v", msg.err)
@@ -109,7 +112,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case screens.PassphraseEnteredMsg:
 		return m, postStorageGuided(m.client, m.logger, msg.DiskID, msg.Capability, &msg.Passphrase)
 	case screens.PassphraseCancelMsg:
-		m.current = screens.NewStorage(m.storageItems)
+		var label string
+		if len(m.storageItems) > 0 {
+			label = diskLabelFor(m.disksByID, m.storageItems[0].DiskID)
+		}
+		m.current = screens.NewStorage(m.storageItems, label)
 		return m, nil
 	case storagePostOKMsg:
 		m.logger.Printf("storage configured successfully")
@@ -319,18 +326,21 @@ func sourceCurrentID(d *client.SourceSelectionAndSetting) string {
 	return d.CurrentID
 }
 
-func toDiskItems(targets []client.StorageReformatTarget, diskPaths map[string]string) []screens.DiskItem {
+func diskLabelFor(disksByID map[string]client.StorageDisk, diskID string) string {
+	if d, ok := disksByID[diskID]; ok && d.Path != "" {
+		return d.Path
+	}
+	return diskID
+}
+
+func toDiskItems(targets []client.StorageReformatTarget, disksByID map[string]client.StorageDisk) []screens.DiskItem {
 	items := make([]screens.DiskItem, len(targets))
 	for i, t := range targets {
-		allowed := make([]string, len(t.Allowed))
-		for j, c := range t.Allowed {
-			allowed[j] = string(c)
-		}
-		path := diskPaths[t.DiskID]
+		disk := disksByID[t.DiskID]
 		items[i] = screens.DiskItem{
-			DiskID:  t.DiskID,
-			Path:    path,
-			Allowed: allowed,
+			DiskID: t.DiskID,
+			Path:   disk.Path,
+			Size:   disk.Size,
 		}
 	}
 	return items

@@ -10,9 +10,9 @@ import (
 )
 
 type DiskItem struct {
-	DiskID  string
-	Path    string
-	Allowed []string
+	DiskID string
+	Path   string
+	Size   int64
 }
 
 type DiskSelectionScreen struct {
@@ -74,8 +74,7 @@ func (d *DiskSelectionScreen) View(width, height int) string {
 	lines = append(lines, "")
 
 	for i, item := range d.items {
-		families := extractFamilies(item.Allowed)
-		hint := fmt.Sprintf("Supported: %s", strings.Join(families, ", "))
+		hint := humanSize(item.Size)
 
 		display := item.Path
 		if display == "" {
@@ -97,18 +96,22 @@ func (d *DiskSelectionScreen) View(width, height int) string {
 	return strings.Join(lines, "\n")
 }
 
-func extractFamilies(capList []string) []string {
-	families := make(map[string]bool)
-	for _, cap := range capList {
-		meta, ok := capabilities[cap]
-		if ok {
-			families[meta.family] = true
-		}
-	}
+func humanSize(bytes int64) string {
+	const (
+		kb = 1000
+		mb = 1000 * kb
+		gb = 1000 * mb
+		tb = 1000 * gb
+	)
 
-	familyList := make([]string, 0, len(families))
-	for family := range families {
-		familyList = append(familyList, family)
+	switch {
+	case bytes < mb:
+		return fmt.Sprintf("%d KB", bytes/kb)
+	case bytes < gb:
+		return fmt.Sprintf("%.1f MB", float64(bytes)/float64(mb))
+	case bytes < tb:
+		return fmt.Sprintf("%.1f GB", float64(bytes)/float64(gb))
+	default:
+		return fmt.Sprintf("%.1f TB", float64(bytes)/float64(tb))
 	}
-	return familyList
 }

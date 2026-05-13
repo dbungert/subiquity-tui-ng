@@ -523,7 +523,7 @@ func TestModel_DiskSelectedMsgFiltersCapabilities(t *testing.T) {
 	assert.Equal(t, "LVM", m.storageItems[1].Capability)
 }
 
-func TestModel_StorageV2MsgStoresDiskPaths(t *testing.T) {
+func TestModel_StorageV2MsgStoresDiskInfo(t *testing.T) {
 	var buf bytes.Buffer
 	logger := log.New(&buf, "", 0)
 	m := Model{
@@ -533,29 +533,31 @@ func TestModel_StorageV2MsgStoresDiskPaths(t *testing.T) {
 	}
 
 	disks := []client.StorageDisk{
-		{ID: "disk-sda", Path: "/dev/sda"},
-		{ID: "disk-sdb", Path: "/dev/sdb"},
+		{ID: "disk-sda", Path: "/dev/sda", Size: 500_000_000_000},
+		{ID: "disk-sdb", Path: "/dev/sdb", Size: 1_000_000_000_000},
 	}
 	next, cmd := m.Update(storageV2Msg{disks: disks})
 	m = next.(Model)
 	assert.Nil(t, cmd)
-	assert.NotNil(t, m.diskPaths)
-	assert.Equal(t, "/dev/sda", m.diskPaths["disk-sda"])
-	assert.Equal(t, "/dev/sdb", m.diskPaths["disk-sdb"])
+	assert.NotNil(t, m.disksByID)
+	assert.Equal(t, "/dev/sda", m.disksByID["disk-sda"].Path)
+	assert.Equal(t, int64(500_000_000_000), m.disksByID["disk-sda"].Size)
+	assert.Equal(t, "/dev/sdb", m.disksByID["disk-sdb"].Path)
+	assert.Equal(t, int64(1_000_000_000_000), m.disksByID["disk-sdb"].Size)
 }
 
-func TestModel_StorageGuidedMsgUsesDiskPaths(t *testing.T) {
+func TestModel_StorageGuidedMsgUsesDiskInfo(t *testing.T) {
 	var buf bytes.Buffer
 	logger := log.New(&buf, "", 0)
-	diskPaths := map[string]string{
-		"disk-sda": "/dev/sda",
-		"disk-sdb": "/dev/sdb",
+	disksByID := map[string]client.StorageDisk{
+		"disk-sda": {ID: "disk-sda", Path: "/dev/sda", Size: 500_000_000_000},
+		"disk-sdb": {ID: "disk-sdb", Path: "/dev/sdb", Size: 1_000_000_000_000},
 	}
 	m := Model{
 		current:   screens.NewStorageLoading(),
 		client:    client.New(".subiquity/socket"),
 		logger:    logger,
-		diskPaths: diskPaths,
+		disksByID: disksByID,
 	}
 
 	targets := []client.StorageReformatTarget{
@@ -580,4 +582,6 @@ func TestModel_StorageGuidedMsgUsesDiskPaths(t *testing.T) {
 	view := diskScreen.View(80, 24)
 	assert.Contains(t, view, "/dev/sda")
 	assert.Contains(t, view, "/dev/sdb")
+	assert.Contains(t, view, "500.0 GB")
+	assert.Contains(t, view, "1.0 TB")
 }

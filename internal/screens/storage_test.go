@@ -9,8 +9,16 @@ import (
 )
 
 func TestStorage_Title(t *testing.T) {
-	s := NewStorage(nil)
+	s := NewStorage(nil, "")
 	assert.Equal(t, "Storage Configuration", s.Title())
+}
+
+func TestStorage_TitleShowsDiskLabel(t *testing.T) {
+	items := []StorageItem{
+		{DiskID: "disk-sda", Capability: "DIRECT"},
+	}
+	s := NewStorage(items, "/dev/sda")
+	assert.Equal(t, "Storage Configuration — /dev/sda", s.Title())
 }
 
 func TestStorage_ViewLoadingShowsSpinner(t *testing.T) {
@@ -35,7 +43,7 @@ func TestStorage_InitStartsTickWhenLoading(t *testing.T) {
 }
 
 func TestStorage_InitNoTickWhenLoaded(t *testing.T) {
-	s := NewStorage(nil)
+	s := NewStorage(nil, "")
 	cmd := s.Init()
 	assert.Nil(t, cmd, "loaded screen should not start spinner")
 }
@@ -45,7 +53,7 @@ func TestStorage_ViewShowsItems(t *testing.T) {
 		{DiskID: "disk-sda", Capability: "DIRECT"},
 		{DiskID: "disk-sda", Capability: "LVM"},
 	}
-	s := NewStorage(items)
+	s := NewStorage(items, "")
 	view := s.View(80, 24)
 	assert.Contains(t, view, "Choose an installation type")
 	assert.Contains(t, view, "Direct")
@@ -56,7 +64,7 @@ func TestStorage_ViewShowsCapabilityNames(t *testing.T) {
 	items := []StorageItem{
 		{DiskID: "disk-sda", Capability: "LVM_LUKS"},
 	}
-	s := NewStorage(items)
+	s := NewStorage(items, "")
 	view := s.View(80, 24)
 	assert.Contains(t, view, "LVM + Encryption 🔒")
 	assert.Contains(t, view, "LVM with LUKS — same as LVM but passphrase-encrypted")
@@ -67,7 +75,7 @@ func TestStorage_NavigateUpDown(t *testing.T) {
 		{DiskID: "disk-a", Capability: "DIRECT"},
 		{DiskID: "disk-b", Capability: "LVM"},
 	}
-	s := NewStorage(items)
+	s := NewStorage(items, "")
 	assert.Equal(t, 0, s.cursor)
 
 	next, _ := s.Update(tea.KeyMsg{Type: tea.KeyDown})
@@ -83,7 +91,7 @@ func TestStorage_NavigateUpDownClamped(t *testing.T) {
 	items := []StorageItem{
 		{DiskID: "disk-a", Capability: "DIRECT"},
 	}
-	s := NewStorage(items)
+	s := NewStorage(items, "")
 
 	// Can't go up from 0
 	next, _ := s.Update(tea.KeyMsg{Type: tea.KeyUp})
@@ -100,7 +108,7 @@ func TestStorage_EnterEmitsSelectedMsg(t *testing.T) {
 	items := []StorageItem{
 		{DiskID: "disk-sda", Capability: "DIRECT"},
 	}
-	s := NewStorage(items)
+	s := NewStorage(items, "")
 	_, cmd := s.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	require.NotNil(t, cmd)
 
@@ -115,7 +123,7 @@ func TestStorage_UpdateIgnoresNonKey(t *testing.T) {
 	items := []StorageItem{
 		{DiskID: "disk-a", Capability: "DIRECT"},
 	}
-	s := NewStorage(items)
+	s := NewStorage(items, "")
 
 	next, cmd := s.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	assert.Equal(t, s, next)
@@ -123,7 +131,7 @@ func TestStorage_UpdateIgnoresNonKey(t *testing.T) {
 }
 
 func TestStorage_ViewEmptyWhenNoItems(t *testing.T) {
-	s := NewStorage(nil)
+	s := NewStorage(nil, "")
 	view := s.View(80, 24)
 	assert.Contains(t, view, "No suitable disks found")
 }
@@ -138,7 +146,7 @@ func TestStorage_UpdateSpinnerWhenLoading(t *testing.T) {
 }
 
 func TestStorage_UpdateStopsTickWhenLoaded(t *testing.T) {
-	s := NewStorage([]StorageItem{{DiskID: "disk-a", Capability: "DIRECT"}})
+	s := NewStorage([]StorageItem{{DiskID: "disk-a", Capability: "DIRECT"}}, "")
 	next, cmd := s.Update(storageSpinnerTickMsg{})
 	assert.Equal(t, s, next)
 	assert.Nil(t, cmd, "loaded screen should ignore tick")
@@ -149,7 +157,7 @@ func TestStorage_ViewGroupsCapabilitiesByFamily(t *testing.T) {
 		{DiskID: "disk-a", Capability: "LVM"},
 		{DiskID: "disk-a", Capability: "LVM_LUKS"},
 	}
-	s := NewStorage(items)
+	s := NewStorage(items, "")
 	view := s.View(80, 24)
 	assert.Contains(t, view, " ─ LVM ")
 	familyCount := 0
@@ -166,7 +174,7 @@ func TestStorage_ViewShowsFriendlyNames(t *testing.T) {
 		{DiskID: "disk-sda", Capability: "LVM_LUKS"},
 		{DiskID: "disk-sda", Capability: "ZFS_LUKS_KEYSTORE"},
 	}
-	s := NewStorage(items)
+	s := NewStorage(items, "")
 	view := s.View(80, 24)
 	assert.Contains(t, view, "LVM + Encryption 🔒")
 	assert.Contains(t, view, "ZFS + Encryption 🔒")
@@ -176,7 +184,7 @@ func TestStorage_ViewShowsImprovedDescriptions(t *testing.T) {
 	items := []StorageItem{
 		{DiskID: "disk-sda", Capability: "LVM_LUKS"},
 	}
-	s := NewStorage(items)
+	s := NewStorage(items, "")
 	view := s.View(80, 24)
 	assert.Contains(t, view, "same as LVM but passphrase-encrypted")
 }

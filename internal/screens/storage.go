@@ -47,10 +47,11 @@ type StorageCapabilitySelectedMsg struct {
 }
 
 type StorageScreen struct {
-	items   []StorageItem
-	cursor  int
-	loading bool
-	frame   int
+	items     []StorageItem
+	cursor    int
+	loading   bool
+	frame     int
+	diskLabel string
 }
 
 func NewStorageLoading() *StorageScreen {
@@ -60,12 +61,13 @@ func NewStorageLoading() *StorageScreen {
 	}
 }
 
-func NewStorage(items []StorageItem) *StorageScreen {
+func NewStorage(items []StorageItem, diskLabel string) *StorageScreen {
 	sortedItems := sortStorageItems(items)
 	return &StorageScreen{
-		items:   sortedItems,
-		loading: false,
-		cursor:  0,
+		items:     sortedItems,
+		loading:   false,
+		cursor:    0,
+		diskLabel: diskLabel,
 	}
 }
 
@@ -141,8 +143,8 @@ func (s *StorageScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 }
 
 func (s *StorageScreen) Title() string {
-	if len(s.items) > 0 {
-		return fmt.Sprintf("Storage Configuration — %s", s.items[0].DiskID)
+	if s.diskLabel != "" {
+		return fmt.Sprintf("Storage Configuration — %s", s.diskLabel)
 	}
 	return "Storage Configuration"
 }

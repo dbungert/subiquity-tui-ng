@@ -94,8 +94,8 @@ add it to `internal/ui/`.
   `.subiquity/socket` in test mode). Async commands (`tea.Cmd`) fetch data and
   post selections back.
 - **Screen sequence:** Language → Source → Storage (disk selection & capability) →
-  Confirm (destructive-action confirmation) → Keyboard → ... See `main.go` for
-  handler routing and message types.
+  Identity (user & hostname in two screens) → Confirm (destructive-action confirmation) → InstallProgress.
+  See `main.go` for handler routing and message types.
 - **Subiquity API: body vs. query parameters.** Check `apidef.py` in upstream
   subiquity: parameters with `Payload` type in the handler signature go in the
   request body (JSON-encoded); everything else goes in query parameters.
@@ -124,6 +124,29 @@ add it to `internal/ui/`.
   count → scrollable list with `> ` selection prefix and orange highlight row →
   key-hint bar. No button stack (Enter directly confirms inline).
 - **On Enter,** posts locale to server and transitions to Source screen.
+
+## Identity screens (`internal/screens/user_identity.go` & `host_identity.go`)
+
+Upstream subiquity collects user identity on a single screen. We split it into two:
+
+- **UserIdentityScreen** (`internal/screens/user_identity.go`):
+  - Three fields: realname ("Your name:"), username, password (masked with `●`)
+  - Down/Up arrows navigate between fields; Enter on last field submits
+  - Emits `UserIdentityDoneMsg` with realname, username, password
+  - Validation: rejects empty fields inline
+
+- **HostIdentityScreen** (`internal/screens/host_identity.go`):
+  - Single field: hostname ("Server name:")
+  - Emits `HostIdentityDoneMsg` with hostname
+  - Pattern identical to PassphraseScreen
+
+- **Password hashing:** On submit, password is hashed with SHA-512 crypt(3) format
+  (`$6$salt$hash`) using `github.com/GehirnInc/crypt/sha512_crypt`. The hash is
+  sent in `POST /identity` with `IdentityData` struct containing realname, username,
+  crypted_password, and hostname.
+
+- **API:** `POST /identity` uses `Payload[IdentityData]` → JSON body (not query params).
+  Field names: `realname` (not `fullname`), `username`, `crypted_password`, `hostname`.
 
 ## Future scope worth knowing about
 

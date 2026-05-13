@@ -248,7 +248,7 @@ type StorageDisk struct {
 }
 
 func (c *Client) GetStorageV2(ctx context.Context) ([]StorageDisk, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", "http://localhost/storage/v2", nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", "http://localhost/storage/v2?wait=true", nil)
 	if err != nil {
 		return nil, err
 	}

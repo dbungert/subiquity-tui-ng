@@ -147,7 +147,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case metaConfirmOKMsg:
 		m.logger.Printf("meta/confirm: ok")
 		m.current = screens.NewInstallProgress()
-		return m, m.current.Init()
+		return m, tea.Batch(m.current.Init(), fetchMetaStatus(m.client, m.logger))
 	case metaConfirmErrMsg:
 		m.logger.Printf("POST /meta/confirm error: %v", msg.err)
 		return m, nil

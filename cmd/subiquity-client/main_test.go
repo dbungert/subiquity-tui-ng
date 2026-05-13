@@ -505,7 +505,7 @@ func TestModel_MetaConfirmOKTransitionsToInstallProgress(t *testing.T) {
 	m = next.(Model)
 	_, ok := m.current.(*screens.InstallProgress)
 	assert.True(t, ok, "expected current screen to be InstallProgress after confirm OK")
-	assert.Nil(t, cmd, "metaConfirmOKMsg should not fire any cmd (mark_configured fired earlier)")
+	assert.NotNil(t, cmd, "metaConfirmOKMsg should fire fetchMetaStatus to watch state transitions")
 }
 
 func TestModel_DiskSelectedMsgTransitionsToStorage(t *testing.T) {

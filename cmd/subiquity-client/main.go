@@ -29,7 +29,7 @@ type Model struct {
 }
 
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(m.current.Init(), fetchMetaStatus(m.client, m.logger))
+	return tea.Batch(m.current.Init(), fetchMetaStatus(m.client, m.logger), fetchSource(m.client, m.logger))
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -53,6 +53,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.current = screens.NewKeyboard()
 		return m, m.current.Init()
 	case localePostErrMsg:
+		return m, nil
+	case sourceMsg:
+		return m, nil
+	case sourceErrMsg:
 		return m, nil
 	}
 	var cmd tea.Cmd
@@ -81,6 +85,31 @@ type localePostOKMsg struct{}
 
 type localePostErrMsg struct {
 	err error
+}
+
+type sourceMsg struct {
+	data *client.SourceSelectionAndSetting
+}
+
+type sourceErrMsg struct {
+	err error
+}
+
+func fetchSource(c *client.Client, logger *log.Logger) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		data, err := c.GetSource(ctx)
+		if err != nil {
+			logger.Printf("GET /source error: %v", err)
+			return sourceErrMsg{err: err}
+		}
+		for _, s := range data.Sources {
+			logger.Printf("source: id=%s name=%q default=%v", s.ID, s.Name, s.Default)
+		}
+		logger.Printf("source: current_id=%s search_drivers=%v", data.CurrentID, data.SearchDrivers)
+		return sourceMsg{data: data}
+	}
 }
 
 func postLocale(c *client.Client, logger *log.Logger, code string) tea.Cmd {

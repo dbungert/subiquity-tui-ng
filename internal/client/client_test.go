@@ -175,6 +175,84 @@ func TestPostLocale_ErrorOnNonOK(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid locale")
 }
 
+func TestGetSource_HTTPGet(t *testing.T) {
+	listener, err := net.Listen("unix", "")
+	require.NoError(t, err)
+	defer func() {
+		_ = listener.Close()
+	}()
+
+	expected := SourceSelectionAndSetting{
+		Sources: []SourceSelection{
+			{
+				Name:        "Ubuntu Server",
+				Description: "The standard Ubuntu server",
+				ID:          "ubuntu-server",
+				Size:        2500000000,
+				Variant:     "server",
+				Default:     true,
+			},
+			{
+				Name:        "Ubuntu Server (minimized)",
+				Description: "Minimal Ubuntu server",
+				ID:          "ubuntu-server-minimal",
+				Size:        1500000000,
+				Variant:     "server",
+				Default:     false,
+			},
+		},
+		CurrentID:     "ubuntu-server",
+		SearchDrivers: false,
+	}
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/source", r.URL.Path)
+		assert.Equal(t, "GET", r.Method)
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(expected)
+	})
+
+	go func() {
+		_ = http.Serve(listener, handler)
+	}()
+
+	c := New(listener.Addr().String())
+	ctx := context.Background()
+	result, err := c.GetSource(ctx)
+	require.NoError(t, err)
+	assert.Len(t, result.Sources, 2)
+	assert.Equal(t, "ubuntu-server", result.Sources[0].ID)
+	assert.True(t, result.Sources[0].Default)
+	assert.Equal(t, "ubuntu-server-minimal", result.Sources[1].ID)
+	assert.False(t, result.Sources[1].Default)
+	assert.Equal(t, "ubuntu-server", result.CurrentID)
+	assert.False(t, result.SearchDrivers)
+}
+
+func TestGetSource_ErrorOnNonOK(t *testing.T) {
+	listener, err := net.Listen("unix", "")
+	require.NoError(t, err)
+	defer func() {
+		_ = listener.Close()
+	}()
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte("server error"))
+	})
+
+	go func() {
+		_ = http.Serve(listener, handler)
+	}()
+
+	c := New(listener.Addr().String())
+	ctx := context.Background()
+	_, err = c.GetSource(ctx)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "500")
+	assert.Contains(t, err.Error(), "server error")
+}
+
 func boolPtr(v bool) *bool {
 	return &v
 }

@@ -170,3 +170,50 @@ func TestModel_LocalePostErrStaysOnScreen(t *testing.T) {
 	assert.Nil(t, cmd)
 	assert.Equal(t, startScreen, m.current)
 }
+
+func TestModel_SourceMsgStaysOnScreen(t *testing.T) {
+	var buf bytes.Buffer
+	logger := log.New(&buf, "", 0)
+	startScreen := screens.NewLanguage()
+	m := Model{
+		current: startScreen,
+		client:  client.New(".subiquity/socket"),
+		logger:  logger,
+	}
+
+	sourceData := &client.SourceSelectionAndSetting{
+		Sources: []client.SourceSelection{
+			{
+				Name:        "Ubuntu Server",
+				Description: "Standard",
+				ID:          "ubuntu-server",
+				Size:        2500000000,
+				Variant:     "server",
+				Default:     true,
+			},
+		},
+		CurrentID:     "ubuntu-server",
+		SearchDrivers: false,
+	}
+
+	next, cmd := m.Update(sourceMsg{data: sourceData})
+	m = next.(Model)
+	assert.Nil(t, cmd)
+	assert.Equal(t, startScreen, m.current)
+}
+
+func TestModel_SourceErrMsgStaysOnScreen(t *testing.T) {
+	var buf bytes.Buffer
+	logger := log.New(&buf, "", 0)
+	startScreen := screens.NewLanguage()
+	m := Model{
+		current: startScreen,
+		client:  client.New(".subiquity/socket"),
+		logger:  logger,
+	}
+
+	next, cmd := m.Update(sourceErrMsg{err: os.ErrNotExist})
+	m = next.(Model)
+	assert.Nil(t, cmd)
+	assert.Equal(t, startScreen, m.current)
+}

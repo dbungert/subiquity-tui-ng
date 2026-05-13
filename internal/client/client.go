@@ -37,6 +37,21 @@ type ApplicationStatus struct {
 	EventSyslogID string           `json:"event_syslog_id"`
 }
 
+type SourceSelection struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	ID          string `json:"id"`
+	Size        int64  `json:"size"`
+	Variant     string `json:"variant"`
+	Default     bool   `json:"default"`
+}
+
+type SourceSelectionAndSetting struct {
+	Sources       []SourceSelection `json:"sources"`
+	CurrentID     string            `json:"current_id"`
+	SearchDrivers bool              `json:"search_drivers"`
+}
+
 type Client struct {
 	http       *http.Client
 	socketPath string
@@ -122,6 +137,32 @@ func (c *Client) PostLocale(ctx context.Context, locale string) error {
 		return fmt.Errorf("POST /locale returned %d: %s", resp.StatusCode, string(body))
 	}
 	return nil
+}
+
+func (c *Client) GetSource(ctx context.Context) (*SourceSelectionAndSetting, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", "http://localhost/source", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("GET /source returned %d: %s", resp.StatusCode, string(body))
+	}
+
+	var result SourceSelectionAndSetting
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, err
+	}
+	return &result, nil
 }
 
 func isConnRefused(errStr string) bool {

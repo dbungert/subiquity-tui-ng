@@ -463,10 +463,9 @@ func TestModel_ConfirmAcceptedFiresPostConfirm(t *testing.T) {
 	var buf bytes.Buffer
 	logger := log.New(&buf, "", 0)
 	m := Model{
-		current:       screens.NewConfirm("/dev/sda", "DIRECT"),
-		client:        client.New(".subiquity/socket"),
-		logger:        logger,
-		confirmingTTY: "/dev/tty1",
+		current: screens.NewConfirm("/dev/sda", "DIRECT"),
+		client:  client.New(".subiquity/socket"),
+		logger:  logger,
 	}
 
 	_, cmd := m.Update(screens.ConfirmAcceptedMsg{})
@@ -493,7 +492,7 @@ func TestModel_ConfirmCancelGoesBackToStorage(t *testing.T) {
 	assert.True(t, ok, "expected current screen to be StorageScreen")
 }
 
-func TestModel_MetaConfirmOKTransitionsToKeyboard(t *testing.T) {
+func TestModel_MetaConfirmOKTransitionsToInstallProgress(t *testing.T) {
 	var buf bytes.Buffer
 	logger := log.New(&buf, "", 0)
 	m := Model{
@@ -502,10 +501,11 @@ func TestModel_MetaConfirmOKTransitionsToKeyboard(t *testing.T) {
 		logger:  logger,
 	}
 
-	next, _ := m.Update(metaConfirmOKMsg{})
+	next, cmd := m.Update(metaConfirmOKMsg{})
 	m = next.(Model)
-	_, ok := m.current.(*screens.Keyboard)
-	assert.True(t, ok, "expected current screen to be Keyboard after confirm OK")
+	_, ok := m.current.(*screens.InstallProgress)
+	assert.True(t, ok, "expected current screen to be InstallProgress after confirm OK")
+	assert.NotNil(t, cmd, "metaConfirmOKMsg should fire postMarkConfigured cmd")
 }
 
 func TestModel_DiskSelectedMsgTransitionsToStorage(t *testing.T) {

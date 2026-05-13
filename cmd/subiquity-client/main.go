@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/alexflint/go-arg"
@@ -32,7 +34,6 @@ type Model struct {
 	disksByID      map[string]client.StorageDisk
 	pendingDiskLabel  string
 	pendingCapability string
-	confirmingTTY     string
 }
 
 func (m Model) Init() tea.Cmd {
@@ -50,9 +51,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case metaStatusMsg:
 		m.logger.Printf("meta/status: state=%s", msg.status.State)
-		if msg.status.ConfirmingTTY != "" {
-			m.confirmingTTY = msg.status.ConfirmingTTY
-		}
 		return m, nil
 	case metaStatusErrMsg:
 		m.logger.Printf("meta/status error: %v", msg.err)
@@ -145,13 +143,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.logger.Printf("POST /storage/v2/guided error: %v", msg.err)
 		return m, nil
 	case screens.ConfirmAcceptedMsg:
-		return m, postMetaConfirm(m.client, m.logger, m.confirmingTTY)
+		return m, postMetaConfirm(m.client, m.logger)
 	case metaConfirmOKMsg:
 		m.logger.Printf("meta/confirm: ok")
-		m.current = screens.NewKeyboard()
-		return m, m.current.Init()
+		m.current = screens.NewInstallProgress()
+		return m, tea.Batch(m.current.Init(), postMarkConfigured(m.client, m.logger))
 	case metaConfirmErrMsg:
 		m.logger.Printf("POST /meta/confirm error: %v", msg.err)
+		return m, nil
+	case markConfiguredOKMsg:
+		m.logger.Printf("mark_configured: ok")
+		return m, nil
+	case markConfiguredErrMsg:
+		m.logger.Printf("POST /meta/mark_configured error: %v", msg.err)
 		return m, nil
 	case screens.ConfirmCancelMsg:
 		var label string
@@ -248,6 +252,12 @@ type metaConfirmErrMsg struct {
 	err error
 }
 
+type markConfiguredOKMsg struct{}
+
+type markConfiguredErrMsg struct {
+	err error
+}
+
 func postSource(c *client.Client, logger *log.Logger, id string) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -319,8 +329,23 @@ func postStorageGuided(c *client.Client, logger *log.Logger, diskID, capability 
 	}
 }
 
-func postMetaConfirm(c *client.Client, logger *log.Logger, tty string) tea.Cmd {
+func getTTY() (string, error) {
+	for _, fd := range []string{"/proc/self/fd/0", "/proc/self/fd/1", "/proc/self/fd/2"} {
+		data, err := os.Readlink(fd)
+		if err == nil && strings.HasPrefix(data, "/dev/") {
+			return data, nil
+		}
+	}
+	return "", fmt.Errorf("could not determine tty")
+}
+
+func postMetaConfirm(c *client.Client, logger *log.Logger) tea.Cmd {
 	return func() tea.Msg {
+		tty, err := getTTY()
+		if err != nil {
+			logger.Printf("POST /meta/confirm: failed to get tty: %v", err)
+			return metaConfirmErrMsg{err: err}
+		}
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		if err := c.PostMetaConfirm(ctx, tty); err != nil {
@@ -329,6 +354,24 @@ func postMetaConfirm(c *client.Client, logger *log.Logger, tty string) tea.Cmd {
 		}
 		logger.Printf("POST /meta/confirm: ok")
 		return metaConfirmOKMsg{}
+	}
+}
+
+var skippedEndpoints = []string{
+	"network", "snaplist", "ubuntu_pro", "drivers",
+	"ssh", "proxy", "keyboard", "mirror",
+}
+
+func postMarkConfigured(c *client.Client, logger *log.Logger) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := c.PostMarkConfigured(ctx, skippedEndpoints); err != nil {
+			logger.Printf("POST /meta/mark_configured error: %v", err)
+			return markConfiguredErrMsg{err: err}
+		}
+		logger.Printf("POST /meta/mark_configured: ok")
+		return markConfiguredOKMsg{}
 	}
 }
 

@@ -10,9 +10,10 @@ import (
 )
 
 type UserIdentityScreen struct {
-	inputs    [3]string
-	focused   int
-	showEmpty bool
+	inputs      [4]string
+	focused     int
+	showEmpty   bool
+	showMismatch bool
 }
 
 type UserIdentityDoneMsg struct {
@@ -23,9 +24,10 @@ type UserIdentityDoneMsg struct {
 
 func NewUserIdentity() *UserIdentityScreen {
 	return &UserIdentityScreen{
-		inputs:    [3]string{"", "", ""},
-		focused:   0,
-		showEmpty: false,
+		inputs:       [4]string{"", "", "", ""},
+		focused:      0,
+		showEmpty:    false,
+		showMismatch: false,
 	}
 }
 
@@ -42,8 +44,14 @@ func (u *UserIdentityScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.Type {
 		case tea.KeyEnter:
-			if u.inputs[0] == "" || u.inputs[1] == "" || u.inputs[2] == "" {
+			if u.inputs[0] == "" || u.inputs[1] == "" || u.inputs[2] == "" || u.inputs[3] == "" {
 				u.showEmpty = true
+				u.showMismatch = false
+				return u, nil
+			}
+			if u.inputs[2] != u.inputs[3] {
+				u.showMismatch = true
+				u.showEmpty = false
 				return u, nil
 			}
 			return u, func() tea.Msg {
@@ -53,16 +61,25 @@ func (u *UserIdentityScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 					Password: u.inputs[2],
 				}
 			}
-		case tea.KeyDown:
-			if u.focused < 2 {
+		case tea.KeyDown, tea.KeyTab:
+			if u.focused < 3 {
 				u.focused++
 				u.showEmpty = false
+				u.showMismatch = false
 			}
 			return u, nil
 		case tea.KeyUp:
 			if u.focused > 0 {
 				u.focused--
 				u.showEmpty = false
+				u.showMismatch = false
+			}
+			return u, nil
+		case tea.KeyShiftTab:
+			if u.focused > 0 {
+				u.focused--
+				u.showEmpty = false
+				u.showMismatch = false
 			}
 			return u, nil
 		case tea.KeyBackspace, tea.KeyCtrlH:
@@ -70,11 +87,13 @@ func (u *UserIdentityScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 				u.inputs[u.focused] = u.inputs[u.focused][:len(u.inputs[u.focused])-1]
 			}
 			u.showEmpty = false
+			u.showMismatch = false
 			return u, nil
 		default:
 			if len(msg.Runes) > 0 {
 				u.inputs[u.focused] += string(msg.Runes)
 				u.showEmpty = false
+				u.showMismatch = false
 			}
 			return u, nil
 		}
@@ -84,17 +103,17 @@ func (u *UserIdentityScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 
 func (u *UserIdentityScreen) View(width, height int) string {
 	contentWidth := ui.ConstrainedWidth(width)
-	labels := [3]string{"Your name:", "Username:", "Password:"}
+	labels := [4]string{"Your name:", "Username:", "Password:", "Confirm password:"}
 
 	lines := make([]string, 0)
 	lines = append(lines, "Enter your identity for the new system.")
 	lines = append(lines, "")
 
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 4; i++ {
 		label := labels[i]
 		value := u.inputs[i]
 
-		if i == 2 {
+		if i == 2 || i == 3 {
 			value = strings.Repeat("●", len(u.inputs[i]))
 		}
 
@@ -112,7 +131,12 @@ func (u *UserIdentityScreen) View(width, height int) string {
 		lines = append(lines, "")
 	}
 
-	lines = append(lines, "Enter Confirm   Up/Down Navigate")
+	if u.showMismatch {
+		lines = append(lines, langHintStyle.Render("Passwords do not match."))
+		lines = append(lines, "")
+	}
+
+	lines = append(lines, "Enter Confirm   ↑↓/Tab Navigate")
 
 	return strings.Join(lines, "\n")
 }

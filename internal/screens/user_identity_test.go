@@ -19,6 +19,7 @@ func TestUserIdentity_ViewRendersAllFields(t *testing.T) {
 	assert.Contains(t, view, "Your name:")
 	assert.Contains(t, view, "Username:")
 	assert.Contains(t, view, "Password:")
+	assert.Contains(t, view, "Confirm password:")
 }
 
 func TestUserIdentity_UpdateAppendsRunesToFocusedField(t *testing.T) {
@@ -46,14 +47,22 @@ func TestUserIdentity_UpdateDownNavigatesFields(t *testing.T) {
 
 	next, _ = u.Update(tea.KeyMsg{Type: tea.KeyDown})
 	u = next.(*UserIdentityScreen)
-	assert.Equal(t, 2, u.focused)
+	assert.Equal(t, 3, u.focused)
+
+	next, _ = u.Update(tea.KeyMsg{Type: tea.KeyDown})
+	u = next.(*UserIdentityScreen)
+	assert.Equal(t, 3, u.focused)
 }
 
 func TestUserIdentity_UpdateUpNavigatesFields(t *testing.T) {
 	u := NewUserIdentity()
-	u.focused = 2
+	u.focused = 3
 
 	next, _ := u.Update(tea.KeyMsg{Type: tea.KeyUp})
+	u = next.(*UserIdentityScreen)
+	assert.Equal(t, 2, u.focused)
+
+	next, _ = u.Update(tea.KeyMsg{Type: tea.KeyUp})
 	u = next.(*UserIdentityScreen)
 	assert.Equal(t, 1, u.focused)
 
@@ -86,6 +95,12 @@ func TestUserIdentity_UpdateEnterEmitsMsg(t *testing.T) {
 	u = next.(*UserIdentityScreen)
 
 	next, _ = u.Update(tea.KeyMsg{Runes: []rune{'j', 'd', 'o', 'e'}})
+	u = next.(*UserIdentityScreen)
+
+	next, _ = u.Update(tea.KeyMsg{Type: tea.KeyDown})
+	u = next.(*UserIdentityScreen)
+
+	next, _ = u.Update(tea.KeyMsg{Runes: []rune{'s', 'e', 'c', 'r', 'e', 't'}})
 	u = next.(*UserIdentityScreen)
 
 	next, _ = u.Update(tea.KeyMsg{Type: tea.KeyDown})
@@ -137,4 +152,73 @@ func TestUserIdentity_UpdateClearsEmptyWarningOnInput(t *testing.T) {
 	next, _ = u.Update(tea.KeyMsg{Runes: []rune{'a'}})
 	u = next.(*UserIdentityScreen)
 	assert.False(t, u.showEmpty)
+}
+
+func TestUserIdentity_UpdateTabNavigatesFields(t *testing.T) {
+	u := NewUserIdentity()
+	assert.Equal(t, 0, u.focused)
+
+	next, _ := u.Update(tea.KeyMsg{Type: tea.KeyTab})
+	u = next.(*UserIdentityScreen)
+	assert.Equal(t, 1, u.focused)
+
+	next, _ = u.Update(tea.KeyMsg{Type: tea.KeyTab})
+	u = next.(*UserIdentityScreen)
+	assert.Equal(t, 2, u.focused)
+
+	next, _ = u.Update(tea.KeyMsg{Type: tea.KeyTab})
+	u = next.(*UserIdentityScreen)
+	assert.Equal(t, 3, u.focused)
+
+	next, _ = u.Update(tea.KeyMsg{Type: tea.KeyTab})
+	u = next.(*UserIdentityScreen)
+	assert.Equal(t, 3, u.focused)
+}
+
+func TestUserIdentity_UpdateShiftTabNavigatesFields(t *testing.T) {
+	u := NewUserIdentity()
+	u.focused = 3
+
+	next, _ := u.Update(tea.KeyMsg{Type: tea.KeyShiftTab})
+	u = next.(*UserIdentityScreen)
+	assert.Equal(t, 2, u.focused)
+
+	next, _ = u.Update(tea.KeyMsg{Type: tea.KeyShiftTab})
+	u = next.(*UserIdentityScreen)
+	assert.Equal(t, 1, u.focused)
+
+	next, _ = u.Update(tea.KeyMsg{Type: tea.KeyShiftTab})
+	u = next.(*UserIdentityScreen)
+	assert.Equal(t, 0, u.focused)
+
+	next, _ = u.Update(tea.KeyMsg{Type: tea.KeyShiftTab})
+	u = next.(*UserIdentityScreen)
+	assert.Equal(t, 0, u.focused)
+}
+
+func TestUserIdentity_UpdateEnterMismatchedPasswordsShowsError(t *testing.T) {
+	u := NewUserIdentity()
+	u.inputs[0] = "John"
+	u.inputs[1] = "jdoe"
+	u.inputs[2] = "secret"
+	u.inputs[3] = "different"
+
+	next, cmd := u.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	u = next.(*UserIdentityScreen)
+	assert.Nil(t, cmd)
+	assert.True(t, u.showMismatch)
+	assert.False(t, u.showEmpty)
+
+	view := u.View(80, 24)
+	assert.Contains(t, view, "do not match")
+}
+
+func TestUserIdentity_ViewMasksConfirmPassword(t *testing.T) {
+	u := NewUserIdentity()
+	u.inputs[3] = "secret"
+	u.focused = 3
+
+	view := u.View(80, 24)
+	assert.NotContains(t, view, "secret")
+	assert.Contains(t, view, "●●●●●●")
 }

@@ -1,4 +1,5 @@
 .DEFAULT_GOAL := check
+COVERAGE_FILE := .coverage.out
 
 .PHONY: check lint test coverage build run init
 
@@ -11,8 +12,8 @@ test:
 	go test -cover ./...
 
 coverage:
-	go test -coverprofile=coverage.out ./...
-	go tool cover -func=coverage.out
+	go test -coverprofile=$(COVERAGE_FILE) ./...
+	go tool cover -func=$(COVERAGE_FILE)
 
 build:
 	go build ./...

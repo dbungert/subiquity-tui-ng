@@ -108,22 +108,24 @@ func TestRender_NarrowScreenUnchanged(t *testing.T) {
 	}
 }
 
-func TestRender_WideScreenCentered(t *testing.T) {
+func TestRender_WideScreenHeaderFullBodyCentered(t *testing.T) {
 	const totalWidth = 150
 	out := Render(totalWidth, 10, "Test", "Body")
 	lines := strings.Split(out, "\n")
 	if len(lines) != 10 {
 		t.Errorf("expected 10 lines, got %d", len(lines))
 	}
-	// Each line should be padded to totalWidth
+	// All lines should be at totalWidth
 	for _, line := range lines {
 		if got := lipgloss.Width(line); got != totalWidth {
 			t.Errorf("wide screen line width %d != %d", got, totalWidth)
 		}
 	}
-	// Content should be centered with blank space on edges
-	firstLine := lines[0]
-	if !strings.HasPrefix(firstLine, " ") {
-		t.Errorf("wide screen output should be padded on left, got: %q", firstLine)
+	// Body lines after header should be centered (have leading space)
+	if HeaderHeight < len(lines) {
+		bodyLine := lines[HeaderHeight]
+		if !strings.HasPrefix(bodyLine, " ") {
+			t.Errorf("body should be centered with left padding")
+		}
 	}
 }

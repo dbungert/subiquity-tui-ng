@@ -7,18 +7,18 @@ import (
 )
 
 func Render(width, height int, title, body string) string {
+	// Header spans full width; body is constrained and centered
+	header := Header(width, title)
+
 	contentWidth := ConstrainedWidth(width)
-	header := Header(contentWidth, title)
 	bodyContent := Body(contentWidth, height-HeaderHeight, body)
 
-	full := lipgloss.JoinVertical(lipgloss.Left, header, bodyContent)
-
-	// Center on wide terminals
+	// Center body on wide terminals
 	if width > contentWidth {
-		full = centerLines(full, width, contentWidth)
+		bodyContent = centerLines(bodyContent, width, contentWidth)
 	}
 
-	return full
+	return lipgloss.JoinVertical(lipgloss.Left, header, bodyContent)
 }
 
 func Header(width int, title string) string {

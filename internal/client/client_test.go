@@ -123,6 +123,58 @@ func TestMetaStatusWithRetry_SucceedsOnFirstCall(t *testing.T) {
 	assert.Equal(t, ApplicationStateRunning, result.State)
 }
 
+func TestPostLocale_SendsCorrectRequest(t *testing.T) {
+	listener, err := net.Listen("unix", "")
+	require.NoError(t, err)
+	defer func() {
+		_ = listener.Close()
+	}()
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/locale", r.URL.Path)
+		assert.Equal(t, "POST", r.Method)
+		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
+		var body string
+		err := json.NewDecoder(r.Body).Decode(&body)
+		require.NoError(t, err)
+		assert.Equal(t, "en_US.UTF-8", body)
+		w.WriteHeader(http.StatusOK)
+	})
+
+	go func() {
+		_ = http.Serve(listener, handler)
+	}()
+
+	c := New(listener.Addr().String())
+	ctx := context.Background()
+	err = c.PostLocale(ctx, "en_US.UTF-8")
+	assert.NoError(t, err)
+}
+
+func TestPostLocale_ErrorOnNonOK(t *testing.T) {
+	listener, err := net.Listen("unix", "")
+	require.NoError(t, err)
+	defer func() {
+		_ = listener.Close()
+	}()
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		_, _ = w.Write([]byte("invalid locale"))
+	})
+
+	go func() {
+		_ = http.Serve(listener, handler)
+	}()
+
+	c := New(listener.Addr().String())
+	ctx := context.Background()
+	err = c.PostLocale(ctx, "invalid")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "422")
+	assert.Contains(t, err.Error(), "invalid locale")
+}
+
 func boolPtr(v bool) *bool {
 	return &v
 }

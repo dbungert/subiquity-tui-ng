@@ -17,6 +17,11 @@ type Language struct {
 	Code    string // locale code, e.g. "de_DE.UTF-8"
 }
 
+// LanguageSelectedMsg is sent when the user confirms language selection via Enter.
+type LanguageSelectedMsg struct {
+	Code string
+}
+
 // allLanguages is sourced from the upstream subiquity languagelist resource,
 // sorted by English name.
 var allLanguages = []Language{
@@ -117,7 +122,10 @@ func (ls *LanguageScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 			ls.cursor = min(len(ls.visible)-1, ls.cursor+10)
 		}
 	case "enter":
-		// TODO: transition to keyboard layout screen
+		if len(ls.visible) > 0 {
+			selected := ls.all[ls.visible[ls.cursor]]
+			return ls, func() tea.Msg { return LanguageSelectedMsg{Code: selected.Code} }
+		}
 	case "esc":
 		ls.filter = ""
 		ls.rebuildVisible()

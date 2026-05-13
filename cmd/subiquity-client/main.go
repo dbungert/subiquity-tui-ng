@@ -47,6 +47,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case metaStatusErrMsg:
 		m.logger.Printf("meta/status error: %v", msg.err)
 		return m, nil
+	case screens.LanguageSelectedMsg:
+		return m, postLocale(m.client, m.logger, msg.Code)
+	case localePostOKMsg:
+		m.current = screens.NewKeyboard()
+		return m, m.current.Init()
+	case localePostErrMsg:
+		return m, nil
 	}
 	var cmd tea.Cmd
 	m.current, cmd = m.current.Update(msg)
@@ -68,6 +75,25 @@ type metaStatusMsg struct {
 
 type metaStatusErrMsg struct {
 	err error
+}
+
+type localePostOKMsg struct{}
+
+type localePostErrMsg struct {
+	err error
+}
+
+func postLocale(c *client.Client, logger *log.Logger, code string) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := c.PostLocale(ctx, code); err != nil {
+			logger.Printf("POST /locale error: %v", err)
+			return localePostErrMsg{err: err}
+		}
+		logger.Printf("POST /locale: ok (locale=%s)", code)
+		return localePostOKMsg{}
+	}
 }
 
 func fetchMetaStatus(c *client.Client, logger *log.Logger) tea.Cmd {

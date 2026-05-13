@@ -176,3 +176,15 @@ func TestLanguage_NonKeyMsgIsIgnored(t *testing.T) {
 	assert.Equal(t, cursorBefore, ls.cursor)
 	assert.Equal(t, filterBefore, ls.filter)
 }
+
+func TestLanguage_EnterEmitsSelectedMsg(t *testing.T) {
+	ls := NewLanguage()
+	ls.cursor = 0
+	_, cmd := ls.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	assert.NotNil(t, cmd)
+	msg := cmd()
+	selectedMsg, ok := msg.(LanguageSelectedMsg)
+	assert.True(t, ok, "expected LanguageSelectedMsg")
+	selected := ls.all[ls.visible[0]]
+	assert.Equal(t, selected.Code, selectedMsg.Code)
+}

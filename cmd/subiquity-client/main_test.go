@@ -125,3 +125,48 @@ func TestSocketDefaultLogic_FallsBackToHomeWhenProdNotFound(t *testing.T) {
 	}
 	assert.Equal(t, filepath.Join(".subiquity", "socket"), args.Socket)
 }
+
+func TestModel_LanguageSelectedMsgFiresPostCmd(t *testing.T) {
+	var buf bytes.Buffer
+	logger := log.New(&buf, "", 0)
+	m := Model{
+		current: screens.NewLanguage(),
+		client:  client.New(".subiquity/socket"),
+		logger:  logger,
+	}
+
+	_, cmd := m.Update(screens.LanguageSelectedMsg{Code: "en_US.UTF-8"})
+	assert.NotNil(t, cmd)
+}
+
+func TestModel_LocalePostOKTransitionsToKeyboard(t *testing.T) {
+	var buf bytes.Buffer
+	logger := log.New(&buf, "", 0)
+	m := Model{
+		current: screens.NewLanguage(),
+		client:  client.New(".subiquity/socket"),
+		logger:  logger,
+	}
+
+	next, cmd := m.Update(localePostOKMsg{})
+	m = next.(Model)
+	assert.Nil(t, cmd)
+	_, ok := m.current.(*screens.Keyboard)
+	assert.True(t, ok, "expected current screen to be Keyboard")
+}
+
+func TestModel_LocalePostErrStaysOnScreen(t *testing.T) {
+	var buf bytes.Buffer
+	logger := log.New(&buf, "", 0)
+	startScreen := screens.NewLanguage()
+	m := Model{
+		current: startScreen,
+		client:  client.New(".subiquity/socket"),
+		logger:  logger,
+	}
+
+	next, cmd := m.Update(localePostErrMsg{err: os.ErrPermission})
+	m = next.(Model)
+	assert.Nil(t, cmd)
+	assert.Equal(t, startScreen, m.current)
+}

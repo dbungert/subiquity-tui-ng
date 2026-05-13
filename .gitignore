@@ -1,3 +1,4 @@
 .claude/settings.local.json
 .coverage.out
 /subiquity-client
+/.subiquity

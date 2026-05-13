@@ -1,6 +1,7 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -94,6 +95,33 @@ func (c *Client) MetaStatusWithRetry(ctx context.Context, maxRetries int) (*Appl
 		return nil, err
 	}
 	return nil, context.Canceled
+}
+
+func (c *Client) PostLocale(ctx context.Context, locale string) error {
+	body, err := json.Marshal(locale)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", "http://localhost/locale", bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("POST /locale returned %d: %s", resp.StatusCode, string(body))
+	}
+	return nil
 }
 
 func isConnRefused(errStr string) bool {

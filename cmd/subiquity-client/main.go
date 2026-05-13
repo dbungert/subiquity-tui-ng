@@ -30,6 +30,8 @@ type Model struct {
 	storageTargets []client.StorageReformatTarget
 	storageItems   []screens.StorageItem
 	disksByID      map[string]client.StorageDisk
+	pendingDiskLabel  string
+	pendingCapability string
 }
 
 func (m Model) Init() tea.Cmd {
@@ -113,12 +115,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.logger.Printf("GET /storage/v2/guided error: %v", msg.err)
 		return m, nil
 	case screens.StorageCapabilitySelectedMsg:
+		m.pendingDiskLabel = diskLabelFor(m.disksByID, msg.DiskID)
+		m.pendingCapability = msg.Capability
 		if needsPassphrase(msg.Capability) {
 			m.current = screens.NewPassphrase(msg.DiskID, msg.Capability)
 			return m, nil
 		}
 		return m, postStorageGuided(m.client, m.logger, msg.DiskID, msg.Capability, nil)
 	case screens.PassphraseEnteredMsg:
+		m.pendingDiskLabel = diskLabelFor(m.disksByID, msg.DiskID)
+		m.pendingCapability = msg.Capability
 		return m, postStorageGuided(m.client, m.logger, msg.DiskID, msg.Capability, &msg.Passphrase)
 	case screens.PassphraseCancelMsg:
 		var label string
@@ -129,10 +135,26 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case storagePostOKMsg:
 		m.logger.Printf("storage configured successfully")
-		m.current = screens.NewKeyboard()
-		return m, m.current.Init()
+		m.current = screens.NewConfirm(m.pendingDiskLabel, m.pendingCapability)
+		return m, nil
 	case storagePostErrMsg:
 		m.logger.Printf("POST /storage/v2/guided error: %v", msg.err)
+		return m, nil
+	case screens.ConfirmAcceptedMsg:
+		return m, postMetaConfirm(m.client, m.logger)
+	case metaConfirmOKMsg:
+		m.logger.Printf("meta/confirm: ok")
+		m.current = screens.NewKeyboard()
+		return m, m.current.Init()
+	case metaConfirmErrMsg:
+		m.logger.Printf("POST /meta/confirm error: %v", msg.err)
+		return m, nil
+	case screens.ConfirmCancelMsg:
+		var label string
+		if len(m.storageItems) > 0 {
+			label = diskLabelFor(m.disksByID, m.storageItems[0].DiskID)
+		}
+		m.current = screens.NewStorage(m.storageItems, label)
 		return m, nil
 	}
 	var cmd tea.Cmd
@@ -216,6 +238,12 @@ type storageV2ErrMsg struct {
 	err error
 }
 
+type metaConfirmOKMsg struct{}
+
+type metaConfirmErrMsg struct {
+	err error
+}
+
 func postSource(c *client.Client, logger *log.Logger, id string) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -284,6 +312,19 @@ func postStorageGuided(c *client.Client, logger *log.Logger, diskID, capability 
 		}
 		logger.Printf("POST /storage/v2/guided: ok (disk=%s capability=%s)", diskID, capability)
 		return storagePostOKMsg{}
+	}
+}
+
+func postMetaConfirm(c *client.Client, logger *log.Logger) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := c.PostMetaConfirm(ctx); err != nil {
+			logger.Printf("POST /meta/confirm error: %v", err)
+			return metaConfirmErrMsg{err: err}
+		}
+		logger.Printf("POST /meta/confirm: ok")
+		return metaConfirmOKMsg{}
 	}
 }
 

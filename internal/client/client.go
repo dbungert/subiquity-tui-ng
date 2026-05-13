@@ -407,6 +407,28 @@ func (c *Client) PostStorageGuidedV2(ctx context.Context, choice GuidedChoiceV2)
 	return nil
 }
 
+func (c *Client) PostMetaConfirm(ctx context.Context) error {
+	req, err := http.NewRequestWithContext(ctx, "POST", "http://localhost/meta/confirm", nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("POST /meta/confirm returned %d: %s", resp.StatusCode, string(body))
+	}
+	return nil
+}
+
 func isConnRefused(errStr string) bool {
 	return isConnRefusedErrno(errStr)
 }

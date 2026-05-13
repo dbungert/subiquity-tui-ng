@@ -11,3 +11,11 @@ repos:
     rev: v2.1.0
     hooks:
       - id: golangci-lint
+  - repo: local
+    hooks:
+      - id: go-mod-tidy
+        name: go mod tidy (drift check)
+        language: system
+        entry: go mod tidy -diff
+        pass_filenames: false
+        files: '(\.go|go\.mod|go\.sum)$'

@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := check
 
-.PHONY: check lint test coverage build run vet tidy init
+.PHONY: check lint test coverage build run init
 
 check: lint test build
 
@@ -19,12 +19,6 @@ build:
 
 run:
 	go run .
-
-vet:
-	go vet ./...
-
-tidy:
-	go mod tidy
 
 init:
 	pre-commit install

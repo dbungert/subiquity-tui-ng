@@ -80,7 +80,7 @@ func TestModel_UpdateMetaStatusMsg(t *testing.T) {
 		State: client.ApplicationStateRunning,
 	}
 	_, cmd := m.Update(metaStatusMsg{status: status})
-	assert.Nil(t, cmd)
+	assert.NotNil(t, cmd, "metaStatusMsg should fire postMarkConfigured cmd")
 	assert.Contains(t, buf.String(), "meta/status: state=RUNNING")
 }
 
@@ -505,7 +505,7 @@ func TestModel_MetaConfirmOKTransitionsToInstallProgress(t *testing.T) {
 	m = next.(Model)
 	_, ok := m.current.(*screens.InstallProgress)
 	assert.True(t, ok, "expected current screen to be InstallProgress after confirm OK")
-	assert.NotNil(t, cmd, "metaConfirmOKMsg should fire postMarkConfigured cmd")
+	assert.Nil(t, cmd, "metaConfirmOKMsg should not fire any cmd (mark_configured fired earlier)")
 }
 
 func TestModel_DiskSelectedMsgTransitionsToStorage(t *testing.T) {

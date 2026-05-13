@@ -2,16 +2,24 @@ package main
 
 import (
 	"log"
+	"os"
+	"path/filepath"
 
+	"github.com/alexflint/go-arg"
 	tea "github.com/charmbracelet/bubbletea"
 
 	"subiquity-ng/internal/screens"
 	"subiquity-ng/internal/ui"
 )
 
+type Args struct {
+	Socket string `arg:"--socket" help:"Unix socket for subiquity server communication"`
+}
+
 type Model struct {
 	width, height int
 	current       screens.Screen
+	socket        string
 }
 
 func (m Model) Init() tea.Cmd { return m.current.Init() }
@@ -41,8 +49,20 @@ func (m Model) View() string {
 }
 
 func main() {
+	var args Args
+	arg.MustParse(&args)
+
+	if args.Socket == "" {
+		prodSocket := "/run/subiquity/socket"
+		if _, err := os.Stat(prodSocket); err == nil {
+			args.Socket = prodSocket
+		} else {
+			args.Socket = filepath.Join(".subiquity", "socket")
+		}
+	}
+
 	p := tea.NewProgram(
-		Model{current: screens.NewLanguage()},
+		Model{current: screens.NewLanguage(), socket: args.Socket},
 		tea.WithAltScreen(),
 	)
 	if _, err := p.Run(); err != nil {

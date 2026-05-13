@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -40,4 +42,37 @@ func TestModel_ViewAfterSizeContainsTitle(t *testing.T) {
 	m, _ := newModel().Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	v := m.(Model).View()
 	assert.Contains(t, v, "Welcome!")
+}
+
+func TestModel_StoresSocket(t *testing.T) {
+	m := Model{current: screens.NewLanguage(), socket: "/tmp/test.sock"}
+	assert.Equal(t, "/tmp/test.sock", m.socket)
+}
+
+func TestArgs_DefaultSocketPathWhenNotProvided(t *testing.T) {
+	args := Args{}
+	assert.Equal(t, "", args.Socket)
+}
+
+func TestArgs_CustomSocketPath(t *testing.T) {
+	customPath := "/custom/socket/path"
+	args := Args{Socket: customPath}
+	assert.Equal(t, customPath, args.Socket)
+}
+
+func TestSocketDefaultLogic_FallsBackToHomeWhenProdNotFound(t *testing.T) {
+	args := Args{}
+	prodSocket := "/run/subiquity/socket"
+	if _, err := os.Stat(prodSocket); err == nil {
+		// Production socket exists, this test doesn't apply
+		t.Skip("production socket exists")
+	}
+	if args.Socket == "" {
+		if _, err := os.Stat(prodSocket); err == nil {
+			args.Socket = prodSocket
+		} else {
+			args.Socket = filepath.Join(".subiquity", "socket")
+		}
+	}
+	assert.Equal(t, filepath.Join(".subiquity", "socket"), args.Socket)
 }

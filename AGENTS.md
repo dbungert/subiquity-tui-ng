@@ -60,9 +60,16 @@ add it to `internal/ui/`.
 - **No `q` quit binding.** Future screens will have text input where
   `q` is a valid character. Only `ctrl+c` quits.
 - **Ubuntu orange = `#E95420`.** Hardcoded in `internal/ui/style.go`.
-  If we ever need to match the linux-tty 8-color palette (upstream
-  uses `PIO_CMAP` for this), that's a future concern; gnome-terminal /
-  modern emulators handle the hex color fine.
+  Linux-tty palette (`PIO_CMAP`) is still a future concern; the
+  half-block trick assumes the terminal renders `▀` and `▄`
+  contiguously and uses UTF-8. `internal/ui/capability.go` falls back
+  to 3 solid orange rows when `TERM` is `linux` / `dumb` / empty or
+  the locale isn't UTF-8. Override via `SUBIQUITY_NG_HEADER=blocks|plain`.
+- **Header band is 3 rows but reads as 2 visual lines.** Rows 1 and 3
+  are `▄` / `▀` (orange fg, terminal-default bg) so only half the
+  cell is orange; row 2 is fully orange with the title vertically
+  centered. Glyph constants and `HalfBlockStyle` live in
+  `internal/ui/style.go`; `HeaderHeight = 3` is still the row budget.
 - **Measure with `lipgloss.Width`, not `len`.** Titles contain
   multibyte runes (`Добро пожаловать!`); byte length is wrong.
 

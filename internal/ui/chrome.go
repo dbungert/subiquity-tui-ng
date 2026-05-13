@@ -14,16 +14,23 @@ func Render(width, height int, title, body string) string {
 }
 
 func Header(width int, title string) string {
-	blank := HeaderStyle.Width(width).Render("")
+	var above, below string
+	if useHalfBlocks {
+		above = HalfBlockStyle.Render(strings.Repeat(LowerHalfBlock, width))
+		below = HalfBlockStyle.Render(strings.Repeat(UpperHalfBlock, width))
+	} else {
+		above = HeaderStyle.Width(width).Render("")
+		below = above
+	}
 
 	const helpText = "[ Help ]"
 	pad := width - lipgloss.Width(title) - lipgloss.Width(helpText) - 2
 	if pad < 1 {
 		pad = 1
 	}
-	line := HeaderStyle.Render(" " + title + strings.Repeat(" ", pad) + helpText + " ")
+	mid := HeaderStyle.Render(" " + title + strings.Repeat(" ", pad) + helpText + " ")
 
-	return strings.Join([]string{blank, line, blank}, "\n")
+	return strings.Join([]string{above, mid, below}, "\n")
 }
 
 func Body(width, height int, content string) string {

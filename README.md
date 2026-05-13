@@ -129,7 +129,9 @@ For comparison or integration context, see:
 
 ## License
 
-This proof of concept is not affiliated with Canonical and has no official license. It is experimental code created to explore alternative implementation strategies.
+Licensed under the GNU General Public License v3 (GPLv3). See [LICENSE](./LICENSE) for details.
+
+This proof of concept is experimental work created to explore alternative implementation strategies for the Ubuntu installer. It is not a committed product and does not represent official product direction.
 
 ## Questions or Feedback?
 

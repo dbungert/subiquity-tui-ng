@@ -263,7 +263,7 @@ func TestPostSource_SendsCorrectRequest(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "/source", r.URL.Path)
 		assert.Equal(t, "POST", r.Method)
-		assert.Equal(t, "ubuntu-server", r.URL.Query().Get("source_id"))
+		assert.Equal(t, `"ubuntu-server"`, r.URL.Query().Get("source_id"))
 		assert.Equal(t, "false", r.URL.Query().Get("search_drivers"))
 		w.WriteHeader(http.StatusOK)
 	})

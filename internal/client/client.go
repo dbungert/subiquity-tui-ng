@@ -169,7 +169,8 @@ func (c *Client) GetSource(ctx context.Context) (*SourceSelectionAndSetting, err
 
 func (c *Client) PostSource(ctx context.Context, sourceID string, searchDrivers bool) error {
 	params := url.Values{}
-	params.Set("source_id", sourceID)
+	sourceIDJSON, _ := json.Marshal(sourceID)
+	params.Set("source_id", string(sourceIDJSON))
 	params.Set("search_drivers", strconv.FormatBool(searchDrivers))
 	reqURL := "http://localhost/source?" + params.Encode()
 

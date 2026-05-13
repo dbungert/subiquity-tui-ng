@@ -679,6 +679,68 @@ func TestPostMarkConfigured_ErrorOnNonOK(t *testing.T) {
 	assert.Contains(t, err.Error(), "mark configured failed")
 }
 
+func TestPostIdentity_Success(t *testing.T) {
+	listener, err := net.Listen("unix", "")
+	require.NoError(t, err)
+	defer func() {
+		_ = listener.Close()
+	}()
+
+	var receivedBody IdentityData
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "POST" && r.URL.Path == "/identity" {
+			_ = json.NewDecoder(r.Body).Decode(&receivedBody)
+			w.WriteHeader(http.StatusOK)
+		}
+	})
+
+	go func() {
+		_ = http.Serve(listener, handler)
+	}()
+
+	c := New(listener.Addr().String())
+	ctx := context.Background()
+	data := IdentityData{
+		Realname:        "John Doe",
+		Username:        "johndoe",
+		CryptedPassword: "$6$salt$hash",
+		Hostname:        "myhost",
+	}
+	err = c.PostIdentity(ctx, data)
+	require.NoError(t, err)
+	assert.Equal(t, data, receivedBody)
+}
+
+func TestPostIdentity_ErrorOnNonOK(t *testing.T) {
+	listener, err := net.Listen("unix", "")
+	require.NoError(t, err)
+	defer func() {
+		_ = listener.Close()
+	}()
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte("identity failed"))
+	})
+
+	go func() {
+		_ = http.Serve(listener, handler)
+	}()
+
+	c := New(listener.Addr().String())
+	ctx := context.Background()
+	data := IdentityData{
+		Realname:        "John",
+		Username:        "john",
+		CryptedPassword: "$6$hash",
+		Hostname:        "host",
+	}
+	err = c.PostIdentity(ctx, data)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "500")
+	assert.Contains(t, err.Error(), "identity failed")
+}
+
 func boolPtr(v bool) *bool {
 	return &v
 }

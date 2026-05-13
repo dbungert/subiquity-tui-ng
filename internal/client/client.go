@@ -458,6 +458,40 @@ func (c *Client) PostMarkConfigured(ctx context.Context, endpoints []string) err
 	return nil
 }
 
+type IdentityData struct {
+	Realname        string `json:"realname"`
+	Username        string `json:"username"`
+	CryptedPassword string `json:"crypted_password"`
+	Hostname        string `json:"hostname"`
+}
+
+func (c *Client) PostIdentity(ctx context.Context, data IdentityData) error {
+	body, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", "http://localhost/identity", bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("POST /identity returned %d: %s", resp.StatusCode, string(body))
+	}
+	return nil
+}
+
 func isConnRefused(errStr string) bool {
 	return isConnRefusedErrno(errStr)
 }

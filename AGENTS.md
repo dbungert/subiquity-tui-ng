@@ -1,0 +1,96 @@
+# AGENTS.md
+
+This file is a curated summary of assumptions and constraints for
+`subiquity-ng` — a Bubble Tea rewrite POC of Ubuntu's subiquity
+installer. **Maintain this file as you work.** If you discover or
+decide something non-obvious, add it here so the next agent does not
+have to re-derive it. Keep it terse; this is not a changelog.
+
+## What this project is
+
+Proof-of-concept rewrite of subiquity in Go using Bubble Tea +
+Lipgloss. Upstream subiquity is Python + urwid and lives at
+`/project/megademo/subiquity/`. We are reimplementing the client-side
+TUI, not the server or the curtin integration (yet).
+
+## What this project is not (yet)
+
+- Not a working installer. No server, no curtin, no API client.
+- Not feature-complete with upstream. Screens land one at a time.
+- Not a port — it's a rewrite. We don't need to mirror urwid
+  abstractions; Bubble Tea / Lipgloss already give us scrolling,
+  sized widgets, and styled text natively.
+
+## Inherited UX rules (from upstream DESIGN.md, still apply)
+
+- **80x24 minimum.** Must work in an 80x24 terminal. Smaller terminals
+  may render badly but must not crash (SSH users resize at will).
+- **Never block the UI > 0.1s.** Anything slower runs in the
+  background. If it shows indication, show it for ≥ 1s to avoid
+  flicker. In Bubble Tea this means `tea.Cmd` for I/O, never sync work
+  in `Update`/`View`.
+- **Up / Down / Space / Enter + occasional typing.** That's the entire
+  interaction vocabulary. No mouse-required affordances.
+- **Prevent invalid input** rather than reject after the fact (e.g.,
+  filter keystrokes that can't appear in a unix username). When you
+  must reject, explain what's valid.
+- **Bias for the common case.** Set initial focus / default selection
+  so the common path is one Enter away.
+
+## Screen anatomy (from upstream)
+
+A subiquity screen has:
+1. Header — 3-line Ubuntu orange band, summary on left, `[ Help ]` on right.
+2. Body — usually: excerpt (explains the screen) + scrollable content
+   + button stack with done/cancel.
+
+We replicate the header in `internal/ui/chrome.go`. Body layout is the
+screen's own responsibility for now; if a body-layout helper emerges,
+add it to `internal/ui/`.
+
+## Architecture conventions for this repo
+
+- **`Screen` interface** (`internal/screens/screen.go`): each screen
+  implements `Init / Update / View(w, h) / Title`. The top-level
+  `Model` in `main.go` owns the current screen and delegates. Screen
+  swap-out is not yet implemented but is the next obvious extension.
+- **Chrome is owned by the top-level Model**, not the screen. Screens
+  must not render the orange header themselves. They receive a body
+  rectangle of `(width, height - ui.HeaderHeight)`.
+- **No `q` quit binding.** Future screens will have text input where
+  `q` is a valid character. Only `ctrl+c` quits.
+- **Ubuntu orange = `#E95420`.** Hardcoded in `internal/ui/style.go`.
+  If we ever need to match the linux-tty 8-color palette (upstream
+  uses `PIO_CMAP` for this), that's a future concern; gnome-terminal /
+  modern emulators handle the hex color fine.
+- **Measure with `lipgloss.Width`, not `len`.** Titles contain
+  multibyte runes (`Добро пожаловать!`); byte length is wrong.
+
+## Future scope worth knowing about
+
+- **Client / server split.** Real subiquity is HTTP-over-unix-socket
+  at `/run/subiquity/socket`, long-poll status updates. Eventually we
+  need an API client; this POC has no server interaction.
+- **Autoinstall mode** in upstream bypasses the TUI entirely. Not in
+  scope yet, but the `Screen` interface should not assume interactivity
+  is mandatory forever.
+- **Screen sequence:** Welcome → Keyboard → Network → ... The
+  upstream order lives in `subiquity.client.client`; consult that when
+  adding the next screen.
+
+## Where the upstream lives
+
+- Code: `/project/megademo/subiquity/`
+- Design doc: `/project/megademo/subiquity/DESIGN.md`
+- Client controllers: `subiquity/client/controllers/` in that tree.
+- Views: `subiquity/ui/views/` in that tree.
+
+## Maintenance contract
+
+- When you make a decision that affects future work (e.g., "we don't
+  use lipgloss tables, we render manually because X"), record it here.
+- When an assumption above turns out to be wrong, **edit it in
+  place**. Don't append. This file shrinks and shifts; it does not
+  grow monotonically.
+- Don't paste large chunks of upstream docs here. Link out instead.
+- If a section is no longer true and has no replacement, delete it.

@@ -184,11 +184,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			msg.status.State == client.ApplicationStateError ||
 			msg.status.State == client.ApplicationStateExited
 		if terminal {
-			return m, nil
+			m.current = screens.NewRebootScreen(string(msg.status.State))
+			return m, m.current.Init()
 		}
 		return m, fetchInstallStatus(m.client, m.logger, msg.status.State)
 	case installStatusErrMsg:
 		m.logger.Printf("install status poll error: %v", msg.err)
+		return m, nil
+	case screens.RebootConfirmMsg:
+		return m, postShutdown(m.client, m.logger)
+	case screens.RebootCancelMsg:
+		return m, nil
+	case shutdownOKMsg:
+		m.logger.Printf("shutdown initiated")
+		return m, tea.Quit
+	case shutdownErrMsg:
+		m.logger.Printf("POST /shutdown error: %v", msg.err)
 		return m, nil
 	case screens.ConfirmCancelMsg:
 		var label string
@@ -302,6 +313,12 @@ type installStatusMsg struct {
 }
 
 type installStatusErrMsg struct {
+	err error
+}
+
+type shutdownOKMsg struct{}
+
+type shutdownErrMsg struct {
 	err error
 }
 
@@ -491,6 +508,19 @@ func fetchInstallStatus(c *client.Client, logger *log.Logger, currentState clien
 		}
 		logger.Printf("meta/status transition: %s", status.State)
 		return installStatusMsg{status: status}
+	}
+}
+
+func postShutdown(c *client.Client, logger *log.Logger) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := c.PostShutdown(ctx, "REBOOT", false); err != nil {
+			logger.Printf("POST /shutdown error: %v", err)
+			return shutdownErrMsg{err: err}
+		}
+		logger.Printf("POST /shutdown: ok")
+		return shutdownOKMsg{}
 	}
 }
 

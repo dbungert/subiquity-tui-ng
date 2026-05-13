@@ -84,6 +84,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case storageGuidedMsg:
 		m.storageTargets = msg.targets
+		m.logger.Printf("storageGuidedMsg: %d targets, disksByID has %d entries", len(msg.targets), len(m.disksByID))
+		for diskID, disk := range m.disksByID {
+			m.logger.Printf("  disksByID[%s]: path=%s size=%d", diskID, disk.Path, disk.Size)
+		}
 		if len(msg.targets) == 1 {
 			diskID := msg.targets[0].DiskID
 			items := capabilitiesForDisk(msg.targets, diskID)
@@ -91,7 +95,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			label := diskLabelFor(m.disksByID, diskID)
 			m.current = screens.NewStorage(items, label)
 		} else {
+			m.logger.Printf("Multiple targets, calling toDiskItems")
 			diskItems := toDiskItems(msg.targets, m.disksByID)
+			for i, item := range diskItems {
+				m.logger.Printf("  diskItems[%d]: id=%s path=%s size=%d", i, item.DiskID, item.Path, item.Size)
+			}
 			m.current = screens.NewDiskSelection(diskItems)
 		}
 		return m, nil

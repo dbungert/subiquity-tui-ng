@@ -1,6 +1,10 @@
 package ui
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
 
 func TestDetectHalfBlockSupport(t *testing.T) {
 	cases := []struct {
@@ -50,9 +54,7 @@ func TestDetectHalfBlockSupport(t *testing.T) {
 			for k, v := range tc.env {
 				t.Setenv(k, v)
 			}
-			if got := detectHalfBlockSupport(); got != tc.want {
-				t.Errorf("got %v, want %v", got, tc.want)
-			}
+			assert.Equal(t, tc.want, detectHalfBlockSupport())
 		})
 	}
 }
@@ -76,9 +78,7 @@ func TestIsUTF8Locale(t *testing.T) {
 			for k, v := range tc.env {
 				t.Setenv(k, v)
 			}
-			if got := isUTF8Locale(); got != tc.want {
-				t.Errorf("got %v, want %v", got, tc.want)
-			}
+			assert.Equal(t, tc.want, isUTF8Locale())
 		})
 	}
 }

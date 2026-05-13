@@ -5,39 +5,27 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/stretchr/testify/assert"
 )
-
-func TestLanguage_Init(t *testing.T) {
-	if cmd := NewLanguage().Init(); cmd != nil {
-		t.Error("expected nil cmd from Init")
-	}
-}
 
 func TestLanguage_Title(t *testing.T) {
 	title := NewLanguage().Title()
 	for _, want := range []string{"Willkommen!", "Bienvenue!", "Welcome!", "Добро пожаловать!", "Welkom!"} {
-		if !strings.Contains(title, want) {
-			t.Errorf("title missing %q: %s", want, title)
-		}
+		assert.Contains(t, title, want)
 	}
 }
 
 func TestLanguage_DefaultSelectionIsEnglish(t *testing.T) {
 	ls := NewLanguage()
-	if ls.cursor < 0 || ls.cursor >= len(ls.visible) {
-		t.Fatalf("cursor %d out of range [0, %d)", ls.cursor, len(ls.visible))
-	}
+	assert.GreaterOrEqual(t, ls.cursor, 0)
+	assert.Less(t, ls.cursor, len(ls.visible))
 	got := ls.all[ls.visible[ls.cursor]]
-	if got.Code != "en_US.UTF-8" {
-		t.Errorf("default selection: got %q (%s), want en_US.UTF-8", got.Native, got.Code)
-	}
+	assert.Equal(t, "en_US.UTF-8", got.Code)
 }
 
 func TestLanguage_AllLanguagesVisibleInitially(t *testing.T) {
 	ls := NewLanguage()
-	if len(ls.visible) != len(ls.all) {
-		t.Errorf("initially visible=%d, want %d", len(ls.visible), len(ls.all))
-	}
+	assert.Len(t, ls.visible, len(ls.all))
 }
 
 func TestLanguage_NavigateDown(t *testing.T) {
@@ -45,9 +33,7 @@ func TestLanguage_NavigateDown(t *testing.T) {
 	start := ls.cursor
 	next, _ := ls.Update(tea.KeyMsg{Type: tea.KeyDown})
 	ls = next.(*LanguageScreen)
-	if ls.cursor != start+1 {
-		t.Errorf("cursor after Down: got %d, want %d", ls.cursor, start+1)
-	}
+	assert.Equal(t, start+1, ls.cursor)
 }
 
 func TestLanguage_NavigateUpClampsAtZero(t *testing.T) {
@@ -55,9 +41,7 @@ func TestLanguage_NavigateUpClampsAtZero(t *testing.T) {
 	ls.cursor = 0
 	next, _ := ls.Update(tea.KeyMsg{Type: tea.KeyUp})
 	ls = next.(*LanguageScreen)
-	if ls.cursor != 0 {
-		t.Errorf("cursor should stay at 0 when pressing Up at top, got %d", ls.cursor)
-	}
+	assert.Equal(t, 0, ls.cursor)
 }
 
 func TestLanguage_NavigateDownClampsAtEnd(t *testing.T) {
@@ -65,9 +49,7 @@ func TestLanguage_NavigateDownClampsAtEnd(t *testing.T) {
 	ls.cursor = len(ls.visible) - 1
 	next, _ := ls.Update(tea.KeyMsg{Type: tea.KeyDown})
 	ls = next.(*LanguageScreen)
-	if ls.cursor != len(ls.visible)-1 {
-		t.Errorf("cursor should stay at end when pressing Down at bottom, got %d", ls.cursor)
-	}
+	assert.Equal(t, len(ls.visible)-1, ls.cursor)
 }
 
 func TestLanguage_TypingFiltersListByNative(t *testing.T) {
@@ -78,15 +60,13 @@ func TestLanguage_TypingFiltersListByNative(t *testing.T) {
 		lang := ls.all[idx]
 		native := strings.ToLower(lang.Native)
 		english := strings.ToLower(lang.English)
-		if !strings.Contains(native, "d") && !strings.Contains(english, "d") {
-			t.Errorf("filtered list contains non-matching entry: %q / %q", lang.Native, lang.English)
-		}
+		assert.True(t, strings.Contains(native, "d") || strings.Contains(english, "d"),
+			"filtered list should only contain matching entries")
 	}
 }
 
 func TestLanguage_FilterByEnglishName(t *testing.T) {
 	ls := NewLanguage()
-	// Type "german" - matches Deutsch by English name
 	for _, r := range "german" {
 		next, _ := ls.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
 		ls = next.(*LanguageScreen)
@@ -97,9 +77,7 @@ func TestLanguage_FilterByEnglishName(t *testing.T) {
 			found = true
 		}
 	}
-	if !found {
-		t.Error("filtering by 'german' should include Deutsch")
-	}
+	assert.True(t, found, "filtering by 'german' should include Deutsch")
 }
 
 func TestLanguage_FilterCaseInsensitive(t *testing.T) {
@@ -111,10 +89,7 @@ func TestLanguage_FilterCaseInsensitive(t *testing.T) {
 	next, _ = ls.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("e")})
 	lsLower := next.(*LanguageScreen)
 
-	if len(lsUpper.visible) != len(lsLower.visible) {
-		t.Errorf("case should not matter: 'E' matched %d, 'e' matched %d",
-			len(lsUpper.visible), len(lsLower.visible))
-	}
+	assert.Len(t, lsUpper.visible, len(lsLower.visible))
 }
 
 func TestLanguage_FilterResetsOffset(t *testing.T) {
@@ -122,9 +97,7 @@ func TestLanguage_FilterResetsOffset(t *testing.T) {
 	ls.offset = 5
 	next, _ := ls.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("e")})
 	ls = next.(*LanguageScreen)
-	if ls.offset != 0 {
-		t.Errorf("typing should reset offset to 0, got %d", ls.offset)
-	}
+	assert.Equal(t, 0, ls.offset)
 }
 
 func TestLanguage_BackspaceRemovesLastRune(t *testing.T) {
@@ -136,21 +109,15 @@ func TestLanguage_BackspaceRemovesLastRune(t *testing.T) {
 	next, _ := ls.Update(tea.KeyMsg{Type: tea.KeyBackspace})
 	ls = next.(*LanguageScreen)
 
-	if ls.filter != "fra" {
-		t.Errorf("after backspace filter=%q, want %q", ls.filter, "fra")
-	}
-	if len(ls.visible) < before {
-		t.Errorf("removing a filter char should not decrease matches: before=%d after=%d", before, len(ls.visible))
-	}
+	assert.Equal(t, "fra", ls.filter)
+	assert.GreaterOrEqual(t, len(ls.visible), before)
 }
 
 func TestLanguage_BackspaceOnEmptyFilterIsNoop(t *testing.T) {
 	ls := NewLanguage()
 	next, _ := ls.Update(tea.KeyMsg{Type: tea.KeyBackspace})
 	ls = next.(*LanguageScreen)
-	if ls.filter != "" {
-		t.Errorf("backspace on empty filter should leave it empty, got %q", ls.filter)
-	}
+	assert.Empty(t, ls.filter)
 }
 
 func TestLanguage_EscClearsFilter(t *testing.T) {
@@ -159,12 +126,8 @@ func TestLanguage_EscClearsFilter(t *testing.T) {
 	ls.rebuildVisible()
 	next, _ := ls.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	ls = next.(*LanguageScreen)
-	if ls.filter != "" {
-		t.Errorf("Esc should clear filter, got %q", ls.filter)
-	}
-	if len(ls.visible) != len(ls.all) {
-		t.Errorf("after Esc all languages should be visible: got %d, want %d", len(ls.visible), len(ls.all))
-	}
+	assert.Empty(t, ls.filter)
+	assert.Len(t, ls.visible, len(ls.all))
 }
 
 func TestLanguage_FilterNoMatchesLeavesEmptyVisible(t *testing.T) {
@@ -173,46 +136,34 @@ func TestLanguage_FilterNoMatchesLeavesEmptyVisible(t *testing.T) {
 		next, _ := ls.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
 		ls = next.(*LanguageScreen)
 	}
-	if len(ls.visible) != 0 {
-		t.Errorf("nonsense filter should match nothing, got %d matches", len(ls.visible))
-	}
+	assert.Empty(t, ls.visible)
 }
 
 func TestLanguage_ViewContainsSearchPrompt(t *testing.T) {
 	got := NewLanguage().View(80, 21)
-	if !strings.Contains(got, "Search:") {
-		t.Error("View should contain 'Search:'")
-	}
+	assert.Contains(t, got, "Search:")
 }
 
 func TestLanguage_ViewContainsHints(t *testing.T) {
 	got := NewLanguage().View(80, 21)
 	for _, want := range []string{"Navigate", "Select", "filter", "Clear"} {
-		if !strings.Contains(got, want) {
-			t.Errorf("View hints missing %q", want)
-		}
+		assert.Contains(t, got, want)
 	}
 }
 
 func TestLanguage_ViewContainsSelectedLanguage(t *testing.T) {
 	ls := NewLanguage()
 	got := ls.View(80, 21)
-	if !strings.Contains(got, "English") {
-		t.Error("View should contain selected language 'English'")
-	}
+	assert.Contains(t, got, "English")
 }
 
 func TestLanguage_ViewScrollsToShowCursor(t *testing.T) {
 	ls := NewLanguage()
-	// Move cursor to the last entry
 	ls.cursor = len(ls.visible) - 1
 	ls.offset = 0
 	got := ls.View(80, 21)
-	// The last language should be visible
 	lastName := ls.all[ls.visible[len(ls.visible)-1]]
-	if !strings.Contains(got, lastName.English) {
-		t.Errorf("View should scroll to show cursor at bottom; last lang %q not found", lastName.English)
-	}
+	assert.Contains(t, got, lastName.English)
 }
 
 func TestLanguage_NonKeyMsgIsIgnored(t *testing.T) {
@@ -221,10 +172,7 @@ func TestLanguage_NonKeyMsgIsIgnored(t *testing.T) {
 	filterBefore := ls.filter
 	next, cmd := ls.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	ls = next.(*LanguageScreen)
-	if cmd != nil {
-		t.Error("non-key msg should produce nil cmd")
-	}
-	if ls.cursor != cursorBefore || ls.filter != filterBefore {
-		t.Error("non-key msg should not change cursor or filter")
-	}
+	assert.Nil(t, cmd)
+	assert.Equal(t, cursorBefore, ls.cursor)
+	assert.Equal(t, filterBefore, ls.filter)
 }

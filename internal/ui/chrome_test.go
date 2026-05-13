@@ -5,79 +5,59 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestHeader_HasThreeRows(t *testing.T) {
 	lines := strings.Split(Header(80, ConstrainedWidth(80), "Title"), "\n")
-	if len(lines) != HeaderHeight {
-		t.Errorf("want %d lines, got %d", HeaderHeight, len(lines))
-	}
+	assert.Len(t, lines, HeaderHeight)
 }
 
 func TestHeader_ContainsTitleAndHelp(t *testing.T) {
 	h := Header(80, ConstrainedWidth(80), "Welcome!")
-	if !strings.Contains(h, "Welcome!") {
-		t.Errorf("header missing title: %q", h)
-	}
-	if !strings.Contains(h, "[ Help ]") {
-		t.Errorf("header missing [ Help ]: %q", h)
-	}
+	assert.Contains(t, h, "Welcome!")
+	assert.Contains(t, h, "[ Help ]")
 }
 
 func TestHeader_RowsAreWidthCellsWide(t *testing.T) {
 	const width = 80
 	for _, line := range strings.Split(Header(width, ConstrainedWidth(width), "Добро пожаловать!"), "\n") {
-		if got := lipgloss.Width(line); got != width {
-			t.Errorf("row width %d != %d for %q", got, width, line)
-		}
+		assert.Equal(t, width, lipgloss.Width(line))
 	}
 }
 
 func TestHeader_NarrowWidthDoesNotPanic(t *testing.T) {
 	h := Header(5, ConstrainedWidth(5), "Title")
-	if h == "" {
-		t.Errorf("expected non-empty header for narrow width")
-	}
+	assert.NotEmpty(t, h)
 }
 
 func TestBody_ProducesRequestedDimensions(t *testing.T) {
 	const width, height = 40, 10
 	lines := strings.Split(Body(width, height, "hello"), "\n")
-	if len(lines) != height {
-		t.Errorf("want %d lines, got %d", height, len(lines))
-	}
+	assert.Len(t, lines, height)
 	for _, line := range lines {
-		if got := lipgloss.Width(line); got != width {
-			t.Errorf("line width %d != %d for %q", got, width, line)
-		}
+		assert.Equal(t, width, lipgloss.Width(line))
 	}
 }
 
 func TestBody_HeightClampsToOne(t *testing.T) {
 	lines := strings.Split(Body(40, 0, "hello"), "\n")
-	if len(lines) != 1 {
-		t.Errorf("want height clamped to 1, got %d lines", len(lines))
-	}
+	assert.Len(t, lines, 1)
 }
 
 func TestRender_TotalHeightMatches(t *testing.T) {
 	const width, height = 40, 24
 	lines := strings.Split(Render(width, height, "Welcome", "body"), "\n")
-	if len(lines) != height {
-		t.Errorf("want %d total lines, got %d", height, len(lines))
-	}
+	assert.Len(t, lines, height)
 }
 
 func TestRender_HeaderAppearsBeforeBody(t *testing.T) {
 	out := Render(80, 24, "T-Header", "B-Body")
 	hi := strings.Index(out, "T-Header")
 	bi := strings.Index(out, "B-Body")
-	if hi < 0 || bi < 0 {
-		t.Fatalf("expected both strings in output: %q", out)
-	}
-	if hi > bi {
-		t.Errorf("title should appear before body content")
-	}
+	assert.GreaterOrEqual(t, hi, 0, "expected header in output")
+	assert.GreaterOrEqual(t, bi, 0, "expected body in output")
+	assert.Less(t, hi, bi, "title should appear before body content")
 }
 
 func TestHeader_WideScreenTitleCentered(t *testing.T) {
@@ -87,42 +67,28 @@ func TestHeader_WideScreenTitleCentered(t *testing.T) {
 	lines := strings.Split(h, "\n")
 	// All header lines should be full width
 	for _, line := range lines {
-		if got := lipgloss.Width(line); got != fullWidth {
-			t.Errorf("header line width %d != %d (full width)", got, fullWidth)
-		}
+		assert.Equal(t, fullWidth, lipgloss.Width(line))
 	}
 	// Title should be present in the header
 	headerStr := strings.Join(lines, "\n")
-	if !strings.Contains(headerStr, "Title") {
-		t.Errorf("title not found in header")
-	}
+	assert.Contains(t, headerStr, "Title")
 }
 
 func TestConstrainedWidth_NarrowScreenUnconstrained(t *testing.T) {
-	if got := ConstrainedWidth(80); got != 80 {
-		t.Errorf("width 80 should be unconstrained, got %d", got)
-	}
-	if got := ConstrainedWidth(100); got != 100 {
-		t.Errorf("width 100 should be unconstrained, got %d", got)
-	}
+	assert.Equal(t, 80, ConstrainedWidth(80))
+	assert.Equal(t, 100, ConstrainedWidth(100))
 }
 
 func TestConstrainedWidth_WideScreenConstrained(t *testing.T) {
-	if got := ConstrainedWidth(150); got != MaxContentWidth {
-		t.Errorf("width 150 should constrain to %d, got %d", MaxContentWidth, got)
-	}
-	if got := ConstrainedWidth(200); got != MaxContentWidth {
-		t.Errorf("width 200 should constrain to %d, got %d", MaxContentWidth, got)
-	}
+	assert.Equal(t, MaxContentWidth, ConstrainedWidth(150))
+	assert.Equal(t, MaxContentWidth, ConstrainedWidth(200))
 }
 
 func TestRender_NarrowScreenUnchanged(t *testing.T) {
 	// On 80-width terminal, output should be 80 chars wide
 	out := Render(80, 10, "Test", "Body")
 	for _, line := range strings.Split(out, "\n") {
-		if got := lipgloss.Width(line); got != 80 {
-			t.Errorf("narrow screen line width %d != 80", got)
-		}
+		assert.Equal(t, 80, lipgloss.Width(line))
 	}
 }
 
@@ -130,20 +96,14 @@ func TestRender_WideScreenHeaderFullBodyCentered(t *testing.T) {
 	const totalWidth = 150
 	out := Render(totalWidth, 10, "Test", "Body")
 	lines := strings.Split(out, "\n")
-	if len(lines) != 10 {
-		t.Errorf("expected 10 lines, got %d", len(lines))
-	}
+	assert.Len(t, lines, 10)
 	// All lines should be at totalWidth
 	for _, line := range lines {
-		if got := lipgloss.Width(line); got != totalWidth {
-			t.Errorf("wide screen line width %d != %d", got, totalWidth)
-		}
+		assert.Equal(t, totalWidth, lipgloss.Width(line))
 	}
 	// Body lines after header should be centered (have leading space)
 	if HeaderHeight < len(lines) {
 		bodyLine := lines[HeaderHeight]
-		if !strings.HasPrefix(bodyLine, " ") {
-			t.Errorf("body should be centered with left padding")
-		}
+		assert.True(t, strings.HasPrefix(bodyLine, " "), "body should be centered with left padding")
 	}
 }

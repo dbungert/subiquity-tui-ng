@@ -247,6 +247,27 @@ type StorageDisk struct {
 	Size int64  `json:"size"`
 }
 
+func (c *Client) PostStorageV2(ctx context.Context) error {
+	req, err := http.NewRequestWithContext(ctx, "POST", "http://localhost/storage/v2", http.NoBody)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("POST /storage/v2 returned %d: %s", resp.StatusCode, string(body))
+	}
+	return nil
+}
+
 func (c *Client) GetStorageV2(ctx context.Context) ([]StorageDisk, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", "http://localhost/storage/v2?wait=true", nil)
 	if err != nil {

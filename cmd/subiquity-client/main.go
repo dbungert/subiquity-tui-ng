@@ -351,6 +351,12 @@ func postStorageGuided(c *client.Client, logger *log.Logger, diskID, capability 
 			return storagePostErrMsg{err: err}
 		}
 		logger.Printf("POST /storage/v2/guided: ok (disk=%s capability=%s)", diskID, capability)
+
+		if err := c.PostStorageV2(ctx); err != nil {
+			logger.Printf("POST /storage/v2 error: %v", err)
+			return storagePostErrMsg{err: err}
+		}
+		logger.Printf("POST /storage/v2: ok")
 		return storagePostOKMsg{}
 	}
 }

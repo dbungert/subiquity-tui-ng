@@ -741,6 +741,56 @@ func TestPostIdentity_ErrorOnNonOK(t *testing.T) {
 	assert.Contains(t, err.Error(), "identity failed")
 }
 
+func TestPostStorageV2_Success(t *testing.T) {
+	listener, err := net.Listen("unix", "")
+	require.NoError(t, err)
+	defer func() {
+		_ = listener.Close()
+	}()
+
+	var postCalled bool
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "POST" && r.URL.Path == "/storage/v2" {
+			postCalled = true
+			w.WriteHeader(http.StatusOK)
+		}
+	})
+
+	go func() {
+		_ = http.Serve(listener, handler)
+	}()
+
+	c := New(listener.Addr().String())
+	ctx := context.Background()
+	err = c.PostStorageV2(ctx)
+	require.NoError(t, err)
+	assert.True(t, postCalled)
+}
+
+func TestPostStorageV2_ErrorOnNonOK(t *testing.T) {
+	listener, err := net.Listen("unix", "")
+	require.NoError(t, err)
+	defer func() {
+		_ = listener.Close()
+	}()
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte("storage v2 post failed"))
+	})
+
+	go func() {
+		_ = http.Serve(listener, handler)
+	}()
+
+	c := New(listener.Addr().String())
+	ctx := context.Background()
+	err = c.PostStorageV2(ctx)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "500")
+	assert.Contains(t, err.Error(), "storage v2 post failed")
+}
+
 func boolPtr(v bool) *bool {
 	return &v
 }

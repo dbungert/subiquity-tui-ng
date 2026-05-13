@@ -13,16 +13,18 @@ func TestDiskSelection_Title(t *testing.T) {
 	assert.Equal(t, "Select Disk", d.Title())
 }
 
-func TestDiskSelection_ViewShowsDiskIDs(t *testing.T) {
+func TestDiskSelection_ViewShowsDiskPaths(t *testing.T) {
 	items := []DiskItem{
-		{DiskID: "sda", Allowed: []string{"DIRECT", "LVM"}},
-		{DiskID: "sdb", Allowed: []string{"DIRECT"}},
+		{DiskID: "disk-sda", Path: "/dev/sda", Allowed: []string{"DIRECT", "LVM"}},
+		{DiskID: "disk-sdb", Path: "/dev/sdb", Allowed: []string{"DIRECT"}},
 	}
 	d := NewDiskSelection(items)
 	view := d.View(80, 24)
 	assert.Contains(t, view, "Choose a disk to install on")
-	assert.Contains(t, view, "sda")
-	assert.Contains(t, view, "sdb")
+	assert.Contains(t, view, "/dev/sda")
+	assert.Contains(t, view, "/dev/sdb")
+	assert.NotContains(t, view, "disk-sda")
+	assert.NotContains(t, view, "disk-sdb")
 }
 
 func TestDiskSelection_ViewShowsFamilyHint(t *testing.T) {
@@ -82,11 +84,20 @@ func TestDiskSelection_EnterEmitsDiskSelectedMsg(t *testing.T) {
 	assert.Equal(t, "sda", selectedMsg.DiskID)
 }
 
-func TestDiskSelection_SingleItem(t *testing.T) {
+func TestDiskSelection_ViewFallsBackToDiskID(t *testing.T) {
 	items := []DiskItem{
-		{DiskID: "sda", Allowed: []string{"DIRECT", "LVM"}},
+		{DiskID: "disk-sda", Path: "", Allowed: []string{"DIRECT"}},
 	}
 	d := NewDiskSelection(items)
 	view := d.View(80, 24)
-	assert.Contains(t, view, "sda")
+	assert.Contains(t, view, "disk-sda")
+}
+
+func TestDiskSelection_SingleItem(t *testing.T) {
+	items := []DiskItem{
+		{DiskID: "disk-sda", Path: "/dev/sda", Allowed: []string{"DIRECT", "LVM"}},
+	}
+	d := NewDiskSelection(items)
+	view := d.View(80, 24)
+	assert.Contains(t, view, "/dev/sda")
 }

@@ -11,6 +11,7 @@ import (
 
 type DiskItem struct {
 	DiskID  string
+	Path    string
 	Allowed []string
 }
 
@@ -76,7 +77,10 @@ func (d *DiskSelectionScreen) View(width, height int) string {
 		families := extractFamilies(item.Allowed)
 		hint := fmt.Sprintf("Supported: %s", strings.Join(families, ", "))
 
-		display := item.DiskID
+		display := item.Path
+		if display == "" {
+			display = item.DiskID
+		}
 
 		if i == d.cursor {
 			display = langSelectedStyle.Width(contentWidth).Render("▶ " + display)

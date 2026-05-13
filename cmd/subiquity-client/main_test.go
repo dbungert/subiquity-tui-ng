@@ -522,3 +522,62 @@ func TestModel_DiskSelectedMsgFiltersCapabilities(t *testing.T) {
 	assert.Equal(t, "DIRECT", m.storageItems[0].Capability)
 	assert.Equal(t, "LVM", m.storageItems[1].Capability)
 }
+
+func TestModel_StorageV2MsgStoresDiskPaths(t *testing.T) {
+	var buf bytes.Buffer
+	logger := log.New(&buf, "", 0)
+	m := Model{
+		current: screens.NewStorageLoading(),
+		client:  client.New(".subiquity/socket"),
+		logger:  logger,
+	}
+
+	disks := []client.StorageDisk{
+		{ID: "disk-sda", Path: "/dev/sda"},
+		{ID: "disk-sdb", Path: "/dev/sdb"},
+	}
+	next, cmd := m.Update(storageV2Msg{disks: disks})
+	m = next.(Model)
+	assert.Nil(t, cmd)
+	assert.NotNil(t, m.diskPaths)
+	assert.Equal(t, "/dev/sda", m.diskPaths["disk-sda"])
+	assert.Equal(t, "/dev/sdb", m.diskPaths["disk-sdb"])
+}
+
+func TestModel_StorageGuidedMsgUsesDiskPaths(t *testing.T) {
+	var buf bytes.Buffer
+	logger := log.New(&buf, "", 0)
+	diskPaths := map[string]string{
+		"disk-sda": "/dev/sda",
+		"disk-sdb": "/dev/sdb",
+	}
+	m := Model{
+		current:   screens.NewStorageLoading(),
+		client:    client.New(".subiquity/socket"),
+		logger:    logger,
+		diskPaths: diskPaths,
+	}
+
+	targets := []client.StorageReformatTarget{
+		{
+			DiskID: "disk-sda",
+			Allowed: []client.GuidedCapability{
+				client.CapabilityDirect,
+				client.CapabilityLVM,
+			},
+		},
+		{
+			DiskID: "disk-sdb",
+			Allowed: []client.GuidedCapability{
+				client.CapabilityDirect,
+			},
+		},
+	}
+	next, _ := m.Update(storageGuidedMsg{targets: targets})
+	m = next.(Model)
+	diskScreen, ok := m.current.(*screens.DiskSelectionScreen)
+	assert.True(t, ok, "expected DiskSelectionScreen")
+	view := diskScreen.View(80, 24)
+	assert.Contains(t, view, "/dev/sda")
+	assert.Contains(t, view, "/dev/sdb")
+}

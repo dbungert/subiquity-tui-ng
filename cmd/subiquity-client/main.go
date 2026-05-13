@@ -29,6 +29,7 @@ type Model struct {
 	sourceData     *client.SourceSelectionAndSetting
 	storageTargets []client.StorageReformatTarget
 	storageItems   []screens.StorageItem
+	diskPaths      map[string]string
 }
 
 func (m Model) Init() tea.Cmd {
@@ -68,8 +69,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, postSource(m.client, m.logger, msg.ID)
 	case sourcePostOKMsg:
 		m.current = screens.NewStorageLoading()
-		return m, tea.Batch(m.current.Init(), fetchStorageGuidedV2(m.client, m.logger))
+		return m, tea.Batch(m.current.Init(), fetchStorageV2(m.client, m.logger), fetchStorageGuidedV2(m.client, m.logger))
 	case sourcePostErrMsg:
+		return m, nil
+	case storageV2Msg:
+		m.diskPaths = make(map[string]string)
+		for _, d := range msg.disks {
+			m.diskPaths[d.ID] = d.Path
+		}
+		return m, nil
+	case storageV2ErrMsg:
+		m.logger.Printf("GET /storage/v2 error: %v", msg.err)
 		return m, nil
 	case storageGuidedMsg:
 		m.storageTargets = msg.targets
@@ -78,7 +88,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.storageItems = items
 			m.current = screens.NewStorage(items)
 		} else {
-			diskItems := toDiskItems(msg.targets)
+			diskItems := toDiskItems(msg.targets, m.diskPaths)
 			m.current = screens.NewDiskSelection(diskItems)
 		}
 		return m, nil
@@ -182,6 +192,14 @@ type storagePostErrMsg struct {
 	err error
 }
 
+type storageV2Msg struct {
+	disks []client.StorageDisk
+}
+
+type storageV2ErrMsg struct {
+	err error
+}
+
 func postSource(c *client.Client, logger *log.Logger, id string) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -216,6 +234,20 @@ func fetchStorageGuidedV2(c *client.Client, logger *log.Logger) tea.Cmd {
 
 func needsPassphrase(capability string) bool {
 	return capability == "LVM_LUKS" || capability == "ZFS_LUKS_KEYSTORE"
+}
+
+func fetchStorageV2(c *client.Client, logger *log.Logger) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		disks, err := c.GetStorageV2(ctx)
+		if err != nil {
+			logger.Printf("GET /storage/v2 error: %v", err)
+			return storageV2ErrMsg{err: err}
+		}
+		logger.Printf("GET /storage/v2: ok (%d disks)", len(disks))
+		return storageV2Msg{disks: disks}
+	}
 }
 
 func postStorageGuided(c *client.Client, logger *log.Logger, diskID, capability string, password *string) tea.Cmd {
@@ -287,15 +319,17 @@ func sourceCurrentID(d *client.SourceSelectionAndSetting) string {
 	return d.CurrentID
 }
 
-func toDiskItems(targets []client.StorageReformatTarget) []screens.DiskItem {
+func toDiskItems(targets []client.StorageReformatTarget, diskPaths map[string]string) []screens.DiskItem {
 	items := make([]screens.DiskItem, len(targets))
 	for i, t := range targets {
 		allowed := make([]string, len(t.Allowed))
 		for j, c := range t.Allowed {
 			allowed[j] = string(c)
 		}
+		path := diskPaths[t.DiskID]
 		items[i] = screens.DiskItem{
 			DiskID:  t.DiskID,
+			Path:    path,
 			Allowed: allowed,
 		}
 	}

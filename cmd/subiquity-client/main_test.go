@@ -291,28 +291,52 @@ func TestModel_SourcePostOKTransitionsToStorage(t *testing.T) {
 	assert.True(t, ok, "expected current screen to be StorageScreen")
 }
 
-func TestModel_StorageGuidedMsgUpdatesScreen(t *testing.T) {
+func TestModel_StorageGuidedMsgBuildsItems(t *testing.T) {
 	var buf bytes.Buffer
 	logger := log.New(&buf, "", 0)
 	m := Model{
-		current: screens.NewStorage(""),
+		current: screens.NewStorageLoading(),
 		client:  client.New(".subiquity/socket"),
 		logger:  logger,
 	}
 
-	jsonData := `{"status":"DONE","targets":[]}`
-	next, cmd := m.Update(storageGuidedMsg{raw: jsonData})
+	targets := []client.StorageReformatTarget{
+		{
+			DiskID: "disk-sda",
+			Allowed: []client.GuidedCapability{
+				client.CapabilityDirect,
+				client.CapabilityLVM,
+			},
+		},
+	}
+	next, cmd := m.Update(storageGuidedMsg{targets: targets})
 	m = next.(Model)
 	assert.Nil(t, cmd)
 	storageScreen, ok := m.current.(*screens.StorageScreen)
 	assert.True(t, ok, "expected current screen to be StorageScreen")
-	assert.Contains(t, storageScreen.View(80, 24), jsonData)
+	view := storageScreen.View(80, 24)
+	assert.Contains(t, view, "disk-sda")
+	assert.Contains(t, view, "Direct (ext4)")
+}
+
+func TestModel_StorageCapabilitySelectedLogs(t *testing.T) {
+	var buf bytes.Buffer
+	logger := log.New(&buf, "", 0)
+	m := Model{
+		current: screens.NewStorageLoading(),
+		client:  client.New(".subiquity/socket"),
+		logger:  logger,
+	}
+
+	_, cmd := m.Update(screens.StorageCapabilitySelectedMsg{DiskID: "disk-sda", Capability: "DIRECT"})
+	assert.Nil(t, cmd)
+	assert.Contains(t, buf.String(), "storage selected: disk=disk-sda capability=DIRECT")
 }
 
 func TestModel_StorageGuidedErrLogsAndStays(t *testing.T) {
 	var buf bytes.Buffer
 	logger := log.New(&buf, "", 0)
-	startScreen := screens.NewStorage("initial")
+	startScreen := screens.NewStorageLoading()
 	m := Model{
 		current: startScreen,
 		client:  client.New(".subiquity/socket"),

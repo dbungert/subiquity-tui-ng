@@ -354,6 +354,66 @@ func TestGetStorageGuidedV2_ErrorOnNonOK(t *testing.T) {
 	assert.Contains(t, err.Error(), "probe still running")
 }
 
+func TestParseStorageGuidedTargets_ExtractsReformat(t *testing.T) {
+	input := json.RawMessage(`{
+		"targets": [
+			{
+				"$type": "GuidedStorageTargetReformat",
+				"disk_id": "disk-sda",
+				"allowed": ["DIRECT", "LVM", "LVM_LUKS"]
+			},
+			{
+				"$type": "GuidedStorageTargetManual",
+				"allowed": ["MANUAL"]
+			}
+		]
+	}`)
+
+	targets, err := ParseStorageGuidedTargets(input)
+	require.NoError(t, err)
+	assert.Len(t, targets, 1)
+	assert.Equal(t, "disk-sda", targets[0].DiskID)
+	assert.Len(t, targets[0].Allowed, 3)
+	assert.Equal(t, CapabilityDirect, targets[0].Allowed[0])
+	assert.Equal(t, CapabilityLVM, targets[0].Allowed[1])
+	assert.Equal(t, CapabilityLVMLUKS, targets[0].Allowed[2])
+}
+
+func TestParseStorageGuidedTargets_EmptyTargets(t *testing.T) {
+	input := json.RawMessage(`{"targets": []}`)
+	targets, err := ParseStorageGuidedTargets(input)
+	require.NoError(t, err)
+	assert.Empty(t, targets)
+}
+
+func TestParseStorageGuidedTargets_FiltersOutNonReformat(t *testing.T) {
+	input := json.RawMessage(`{
+		"targets": [
+			{
+				"$type": "GuidedStorageTargetReformat",
+				"disk_id": "disk-1",
+				"allowed": ["DIRECT"]
+			},
+			{
+				"$type": "GuidedStorageTargetUseGap",
+				"disk_id": "disk-2",
+				"allowed": ["LVM"]
+			},
+			{
+				"$type": "GuidedStorageTargetReformat",
+				"disk_id": "disk-3",
+				"allowed": ["ZFS"]
+			}
+		]
+	}`)
+
+	targets, err := ParseStorageGuidedTargets(input)
+	require.NoError(t, err)
+	assert.Len(t, targets, 2)
+	assert.Equal(t, "disk-1", targets[0].DiskID)
+	assert.Equal(t, "disk-3", targets[1].DiskID)
+}
+
 func boolPtr(v bool) *bool {
 	return &v
 }

@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"log"
 	"os"
 	"path/filepath"
@@ -66,15 +65,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case screens.SourceSelectedMsg:
 		return m, postSource(m.client, m.logger, msg.ID)
 	case sourcePostOKMsg:
-		m.current = screens.NewStorage("")
+		m.current = screens.NewStorageLoading()
 		return m, tea.Batch(m.current.Init(), fetchStorageGuidedV2(m.client, m.logger))
 	case sourcePostErrMsg:
 		return m, nil
 	case storageGuidedMsg:
-		m.current = screens.NewStorage(msg.raw)
+		m.current = screens.NewStorage(toStorageItems(msg.targets))
 		return m, nil
 	case storageGuidedErrMsg:
 		m.logger.Printf("GET /storage/v2/guided error: %v", msg.err)
+		return m, nil
+	case screens.StorageCapabilitySelectedMsg:
+		m.logger.Printf("storage selected: disk=%s capability=%s", msg.DiskID, msg.Capability)
 		return m, nil
 	}
 	var cmd tea.Cmd
@@ -137,7 +139,7 @@ type sourcePostErrMsg struct {
 }
 
 type storageGuidedMsg struct {
-	raw string
+	targets []client.StorageReformatTarget
 }
 
 type storageGuidedErrMsg struct {
@@ -166,9 +168,13 @@ func fetchStorageGuidedV2(c *client.Client, logger *log.Logger) tea.Cmd {
 			logger.Printf("GET /storage/v2/guided error: %v", err)
 			return storageGuidedErrMsg{err: err}
 		}
-		pretty, _ := json.MarshalIndent(raw, "", "  ")
-		logger.Printf("GET /storage/v2/guided: ok (%d bytes)", len(raw))
-		return storageGuidedMsg{raw: string(pretty)}
+		targets, err := client.ParseStorageGuidedTargets(raw)
+		if err != nil {
+			logger.Printf("GET /storage/v2/guided parse error: %v", err)
+			return storageGuidedErrMsg{err: err}
+		}
+		logger.Printf("GET /storage/v2/guided: ok (%d bytes, %d targets)", len(raw), len(targets))
+		return storageGuidedMsg{targets: targets}
 	}
 }
 
@@ -218,6 +224,19 @@ func sourceCurrentID(d *client.SourceSelectionAndSetting) string {
 		return ""
 	}
 	return d.CurrentID
+}
+
+func toStorageItems(targets []client.StorageReformatTarget) []screens.StorageItem {
+	var items []screens.StorageItem
+	for _, t := range targets {
+		for _, cap := range t.Allowed {
+			items = append(items, screens.StorageItem{
+				DiskID:     t.DiskID,
+				Capability: string(cap),
+			})
+		}
+	}
+	return items
 }
 
 func main() {

@@ -54,6 +54,21 @@ type SourceSelectionAndSetting struct {
 	SearchDrivers bool              `json:"search_drivers"`
 }
 
+type GuidedCapability string
+
+const (
+	CapabilityDirect          GuidedCapability = "DIRECT"
+	CapabilityLVM             GuidedCapability = "LVM"
+	CapabilityLVMLUKS         GuidedCapability = "LVM_LUKS"
+	CapabilityZFS             GuidedCapability = "ZFS"
+	CapabilityZFSLUKSKeystore GuidedCapability = "ZFS_LUKS_KEYSTORE"
+)
+
+type StorageReformatTarget struct {
+	DiskID  string             `json:"disk_id"`
+	Allowed []GuidedCapability `json:"allowed"`
+}
+
 type Client struct {
 	http       *http.Client
 	socketPath string
@@ -218,6 +233,35 @@ func (c *Client) GetStorageGuidedV2(ctx context.Context) (json.RawMessage, error
 		return nil, err
 	}
 	return result, nil
+}
+
+func ParseStorageGuidedTargets(raw json.RawMessage) ([]StorageReformatTarget, error) {
+	var response struct {
+		Targets []json.RawMessage `json:"targets"`
+	}
+	if err := json.Unmarshal(raw, &response); err != nil {
+		return nil, err
+	}
+
+	var results []StorageReformatTarget
+	for _, targetRaw := range response.Targets {
+		// Check the $type discriminator
+		var discriminator struct {
+			Type string `json:"$type"`
+		}
+		if err := json.Unmarshal(targetRaw, &discriminator); err != nil {
+			continue // Skip malformed targets
+		}
+
+		if discriminator.Type == "GuidedStorageTargetReformat" {
+			var target StorageReformatTarget
+			if err := json.Unmarshal(targetRaw, &target); err != nil {
+				continue // Skip malformed entries
+			}
+			results = append(results, target)
+		}
+	}
+	return results, nil
 }
 
 func isConnRefused(errStr string) bool {

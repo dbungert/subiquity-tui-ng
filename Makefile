@@ -16,10 +16,10 @@ coverage:
 	go tool cover -func=$(COVERAGE_FILE)
 
 build:
-	go build ./...
+	go build -o subiquity-client ./cmd/subiquity-client
 
 run:
-	go run .
+	go run ./cmd/subiquity-client
 
 init:
 	pre-commit install

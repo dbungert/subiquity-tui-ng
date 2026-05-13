@@ -141,6 +141,9 @@ func (s *StorageScreen) Update(msg tea.Msg) (Screen, tea.Cmd) {
 }
 
 func (s *StorageScreen) Title() string {
+	if len(s.items) > 0 {
+		return fmt.Sprintf("Storage Configuration — %s", s.items[0].DiskID)
+	}
 	return "Storage Configuration"
 }
 
@@ -171,7 +174,7 @@ func (s *StorageScreen) View(width, height int) string {
 			lastFamily = meta.family
 		}
 
-		display := fmt.Sprintf("%s   %s", item.DiskID, meta.name)
+		display := meta.name
 
 		if i == s.cursor {
 			display = langSelectedStyle.Width(contentWidth).Render("▶ " + display)

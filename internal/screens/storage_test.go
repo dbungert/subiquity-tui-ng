@@ -48,8 +48,8 @@ func TestStorage_ViewShowsItems(t *testing.T) {
 	s := NewStorage(items)
 	view := s.View(80, 24)
 	assert.Contains(t, view, "Choose a disk and installation type")
-	assert.Contains(t, view, "disk-sda")
 	assert.Contains(t, view, "Direct")
+	assert.NotContains(t, view, "disk-sda   ")
 }
 
 func TestStorage_ViewShowsCapabilityNames(t *testing.T) {

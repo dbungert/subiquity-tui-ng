@@ -88,6 +88,29 @@ add it to `internal/ui/`.
   but distinct concerns don't bundle just because they happen to be
   chores.
 
+## Language screen (`internal/screens/language.go`)
+
+- **Replaces the welcome screen stub** as the first screen wired in `main.go`.
+  `welcome.go` is kept but unused.
+- **Live type-ahead filter.** Typing any character appends to the filter;
+  the list narrows to entries whose native or English name contains the query
+  (case-insensitive). Backspace/Ctrl+H removes the last rune; Esc clears
+  the filter entirely.
+- **Language data** is hardcoded from `/project/megademo/subiquity/languagelist`,
+  sorted by English name, with both native and English names added. Upstream
+  sorts by native name; we sort by English to make the ASCII-primary index more
+  predictable.
+- **Pointer receiver** (`*LanguageScreen`) is used because the screen owns mutable
+  list/scroll state. It implements `Screen` via pointer.
+- **`langOverhead = 6`** captures the fixed lines consumed outside the list
+  (description, blank, search, blank, blank-before-hints, hints). `listH = height - 6`.
+- **Body design diverges from upstream.** The body is open to new ideas per project
+  rules. Current design: description → search line with `█` cursor and live match
+  count → scrollable list with `> ` selection prefix and orange highlight row →
+  key-hint bar. No button stack (Enter directly confirms inline).
+- **Screen transition on Enter is a stub.** `LanguageScreen.Update` returns itself
+  on Enter; wire it to `KeyboardScreen` (not yet implemented) when that screen lands.
+
 ## Future scope worth knowing about
 
 - **Client / server split.** Real subiquity is HTTP-over-unix-socket
@@ -96,7 +119,7 @@ add it to `internal/ui/`.
 - **Autoinstall mode** in upstream bypasses the TUI entirely. Not in
   scope yet, but the `Screen` interface should not assume interactivity
   is mandatory forever.
-- **Screen sequence:** Welcome → Keyboard → Network → ... The
+- **Screen sequence:** Language → Keyboard → Network → ... The
   upstream order lives in `subiquity.client.client`; consult that when
   adding the next screen.
 

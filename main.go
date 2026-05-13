@@ -41,7 +41,7 @@ func (m Model) View() string {
 
 func main() {
 	p := tea.NewProgram(
-		Model{current: screens.NewWelcome()},
+		Model{current: screens.NewLanguage()},
 		tea.WithAltScreen(),
 	)
 	if _, err := p.Run(); err != nil {

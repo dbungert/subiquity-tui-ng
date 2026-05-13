@@ -49,7 +49,7 @@ func TestStorage_ViewShowsItems(t *testing.T) {
 	view := s.View(80, 24)
 	assert.Contains(t, view, "Choose a disk and installation type")
 	assert.Contains(t, view, "disk-sda")
-	assert.Contains(t, view, "Direct (ext4)")
+	assert.Contains(t, view, "Direct")
 }
 
 func TestStorage_ViewShowsCapabilityNames(t *testing.T) {
@@ -58,8 +58,8 @@ func TestStorage_ViewShowsCapabilityNames(t *testing.T) {
 	}
 	s := NewStorage(items)
 	view := s.View(80, 24)
-	assert.Contains(t, view, "LVM + LUKS")
-	assert.Contains(t, view, "LVM with LUKS full-disk encryption")
+	assert.Contains(t, view, "LVM + Encryption 🔒")
+	assert.Contains(t, view, "LVM with LUKS — same as LVM but passphrase-encrypted")
 }
 
 func TestStorage_NavigateUpDown(t *testing.T) {
@@ -142,6 +142,43 @@ func TestStorage_UpdateStopsTickWhenLoaded(t *testing.T) {
 	next, cmd := s.Update(storageSpinnerTickMsg{})
 	assert.Equal(t, s, next)
 	assert.Nil(t, cmd, "loaded screen should ignore tick")
+}
+
+func TestStorage_ViewGroupsCapabilitiesByFamily(t *testing.T) {
+	items := []StorageItem{
+		{DiskID: "disk-a", Capability: "LVM"},
+		{DiskID: "disk-a", Capability: "LVM_LUKS"},
+	}
+	s := NewStorage(items)
+	view := s.View(80, 24)
+	assert.Contains(t, view, " ─ LVM ")
+	familyCount := 0
+	for i := 0; i < len(view)-(len(" ─ LVM ")); i++ {
+		if view[i:i+len(" ─ LVM ")] == " ─ LVM " {
+			familyCount++
+		}
+	}
+	assert.Equal(t, 1, familyCount, "LVM family header should appear exactly once")
+}
+
+func TestStorage_ViewShowsFriendlyNames(t *testing.T) {
+	items := []StorageItem{
+		{DiskID: "disk-sda", Capability: "LVM_LUKS"},
+		{DiskID: "disk-sda", Capability: "ZFS_LUKS_KEYSTORE"},
+	}
+	s := NewStorage(items)
+	view := s.View(80, 24)
+	assert.Contains(t, view, "LVM + Encryption 🔒")
+	assert.Contains(t, view, "ZFS + Encryption 🔒")
+}
+
+func TestStorage_ViewShowsImprovedDescriptions(t *testing.T) {
+	items := []StorageItem{
+		{DiskID: "disk-sda", Capability: "LVM_LUKS"},
+	}
+	s := NewStorage(items)
+	view := s.View(80, 24)
+	assert.Contains(t, view, "same as LVM but passphrase-encrypted")
 }
 
 func contains(s, substr string) bool {

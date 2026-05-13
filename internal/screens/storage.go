@@ -20,21 +20,21 @@ func storageSpinnerTick() tea.Cmd {
 	})
 }
 
-var capabilityNames = map[string]string{
-	"DIRECT":            "Direct (ext4)",
-	"LVM":               "LVM",
-	"LVM_LUKS":          "LVM + LUKS",
-	"ZFS":               "ZFS",
-	"ZFS_LUKS_KEYSTORE": "ZFS + LUKS Keystore",
+type capabilityMeta struct {
+	name   string
+	family string
+	desc   string
 }
 
-var capabilityDescriptions = map[string]string{
-	"DIRECT":            "ext4, minimal partitions",
-	"LVM":               "LVM, ext4 filesystem",
-	"LVM_LUKS":          "LVM with LUKS full-disk encryption",
-	"ZFS":               "ZFS, unencrypted",
-	"ZFS_LUKS_KEYSTORE": "ZFS with Ubuntu LUKS keystore encryption",
+var capabilities = map[string]capabilityMeta{
+	"DIRECT":            {"Direct", "Direct", "Standard ext4 filesystem — no encryption, minimal partitions"},
+	"LVM":               {"LVM", "LVM", "Logical Volume Manager — flexible partitioning, no encryption"},
+	"LVM_LUKS":          {"LVM + Encryption 🔒", "LVM", "LVM with LUKS — same as LVM but passphrase-encrypted"},
+	"ZFS":               {"ZFS", "ZFS", "ZFS copy-on-write filesystem — data integrity, no encryption"},
+	"ZFS_LUKS_KEYSTORE": {"ZFS + Encryption 🔒", "ZFS", "ZFS with Ubuntu LUKS keystore — same as ZFS but encrypted"},
 }
+
+var capabilityOrder = []string{"DIRECT", "LVM", "LVM_LUKS", "ZFS", "ZFS_LUKS_KEYSTORE"}
 
 type StorageItem struct {
 	DiskID     string
@@ -61,11 +61,47 @@ func NewStorageLoading() *StorageScreen {
 }
 
 func NewStorage(items []StorageItem) *StorageScreen {
+	sortedItems := sortStorageItems(items)
 	return &StorageScreen{
-		items:   items,
+		items:   sortedItems,
 		loading: false,
 		cursor:  0,
 	}
+}
+
+func sortStorageItems(items []StorageItem) []StorageItem {
+	capIndex := make(map[string]int)
+	for i, cap := range capabilityOrder {
+		capIndex[cap] = i
+	}
+
+	sorted := make([]StorageItem, len(items))
+	copy(sorted, items)
+
+	sliceSort := func(i, j int) bool {
+		iIdx, iOk := capIndex[sorted[i].Capability]
+		jIdx, jOk := capIndex[sorted[j].Capability]
+		if !iOk {
+			return false
+		}
+		if !jOk {
+			return true
+		}
+		if iIdx != jIdx {
+			return iIdx < jIdx
+		}
+		return sorted[i].DiskID < sorted[j].DiskID
+	}
+
+	for i := 0; i < len(sorted)-1; i++ {
+		for j := i + 1; j < len(sorted); j++ {
+			if sliceSort(j, i) {
+				sorted[i], sorted[j] = sorted[j], sorted[i]
+			}
+		}
+	}
+
+	return sorted
 }
 
 func (s *StorageScreen) Init() tea.Cmd {
@@ -122,13 +158,20 @@ func (s *StorageScreen) View(width, height int) string {
 	lines = append(lines, "Choose a disk and installation type:")
 	lines = append(lines, "")
 
+	var lastFamily string
 	for i, item := range s.items {
-		capName := capabilityNames[item.Capability]
-		if capName == "" {
-			capName = item.Capability
+		meta := capabilities[item.Capability]
+
+		if meta.family != lastFamily {
+			if lastFamily != "" {
+				lines = append(lines, "")
+			}
+			headerLine := fmt.Sprintf(" ─ %s %s", meta.family, strings.Repeat("─", contentWidth-len(meta.family)-4))
+			lines = append(lines, langHintStyle.Render(headerLine))
+			lastFamily = meta.family
 		}
 
-		display := fmt.Sprintf("%s   %s", item.DiskID, capName)
+		display := fmt.Sprintf("%s   %s", item.DiskID, meta.name)
 
 		if i == s.cursor {
 			display = langSelectedStyle.Width(contentWidth).Render("▶ " + display)
@@ -136,11 +179,7 @@ func (s *StorageScreen) View(width, height int) string {
 			display = langNormalStyle.Width(contentWidth).Render("  " + display)
 		}
 		lines = append(lines, display)
-
-		desc := capabilityDescriptions[item.Capability]
-		if desc != "" {
-			lines = append(lines, "    "+langHintStyle.Render(desc))
-		}
+		lines = append(lines, "    "+langHintStyle.Render(meta.desc))
 	}
 
 	lines = append(lines, "")

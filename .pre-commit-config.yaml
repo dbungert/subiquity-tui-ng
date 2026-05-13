@@ -19,3 +19,11 @@ repos:
         entry: go mod tidy -diff
         pass_filenames: false
         files: '(\.go|go\.mod|go\.sum)$'
+  - repo: local
+    hooks:
+      - id: go-test
+        name: go-test
+        entry: make test
+        language: system
+        pass_filenames: false
+        always_run: true
